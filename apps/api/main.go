@@ -54,7 +54,7 @@ func main() {
 
 	app.Get("/api/v1/:city/layers", handleGetLayers(db))
 
-	port := getEnv("PORT", "3000")
+	port := getEnv("PORT", "4000")
 	log.Fatal(app.Listen(":" + port))
 }
 

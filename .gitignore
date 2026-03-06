@@ -1,15 +1,18 @@
 # Dependencies
-apps/web/node_modules/
-apps/web/.pnp
-apps/web/.pnp.*
+node_modules/
+.pnp
+.pnp.*
 
 # Next.js
-apps/web/.next/
-apps/web/out/
+.next/
+out/
 
 # Build outputs
 apps/api/api
 apps/api/api.exe
+
+# Go
+apps/api/go.sum
 
 # Environment variables
 .env

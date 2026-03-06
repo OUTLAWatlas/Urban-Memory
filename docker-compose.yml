@@ -14,7 +14,7 @@ services:
       - "5432:5432"
     volumes:
       - postgis_data:/var/lib/postgresql/data
-      - ./init.sql:/docker-entrypoint-initdb.d/init.sql # Auto-runs your schema
+      - ./packages/database/init.sql:/docker-entrypoint-initdb.d/init.sql # Auto-runs your schema
 
   # The Viewer: Database GUI
   adminer:
