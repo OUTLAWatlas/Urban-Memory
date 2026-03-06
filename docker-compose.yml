@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  # The Brain: PostGIS Database
+  db:
+    image: postgis/postgis:16-3.4
+    container_name: urban_memory_db
+    restart: always
+    environment:
+      POSTGRES_USER: pilot_user
+      POSTGRES_PASSWORD: pilot_password
+      POSTGRES_DB: urban_memory_backend
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgis_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql # Auto-runs your schema
+
+  # The Viewer: Database GUI
+  adminer:
+    image: adminer
+    container_name: urban_memory_gui
+    restart: always
+    ports:
+      - "8080:8080"
+
+volumes:
+  postgis_data:

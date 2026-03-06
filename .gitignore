@@ -1,0 +1,57 @@
+# Dependencies
+apps/web/node_modules/
+apps/web/.pnp
+apps/web/.pnp.*
+
+# Next.js
+apps/web/.next/
+apps/web/out/
+
+# Build outputs
+apps/api/api
+apps/api/api.exe
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# Cache
+cache/
+
+# Docker
+postgis_data/
+
+# Logs
+*.log
+
+# Debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# TypeScript
+*.tsbuildinfo
+
+# Misc
+*.local
