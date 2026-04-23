@@ -12,7 +12,8 @@ apps/api/api
 apps/api/api.exe
 
 # Go
-apps/api/go.sum
+*.test
+*.out
 
 # Environment variables
 .env
@@ -40,6 +41,7 @@ venv/
 
 # Cache
 cache/
+/.qodo/
 
 # Docker
 postgis_data/
@@ -55,6 +57,15 @@ pnpm-debug.log*
 
 # TypeScript
 *.tsbuildinfo
+
+# Hardhat / Solidity
+contracts/artifacts/
+contracts/cache/
+contracts/types/
+contracts/coverage/
+
+# Generated data
+data/scripts/mumbai_mock_data.geojson
 
 # Misc
 *.local
