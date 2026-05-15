@@ -3,11 +3,33 @@
 import { useState, useEffect, useMemo } from 'react';
 import Map, { Source, Layer } from 'react-map-gl/maplibre';
 import 'maplibre-gl/dist/maplibre-gl.css';
+import IntegrityBadge from './IntegrityBadge';
 
 interface HoverInfo {
   feature: GeoJSON.Feature;
   x: number;
   y: number;
+}
+
+interface LayersApiResponse extends GeoJSON.FeatureCollection {
+  type?: string;
+  features?: GeoJSON.Feature[];
+}
+
+interface VerificationPayload {
+  is_verified?: boolean;
+  on_chain_hash?: string;
+  status_message?: string;
+}
+
+interface VerifiedLayerResponse {
+  data?: LayersApiResponse;
+  verification?: VerificationPayload;
+}
+
+interface LedgerStatusResponse {
+  connected?: boolean;
+  error?: string;
 }
 
 const EMPTY_FC: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features: [] };
@@ -24,6 +46,15 @@ const LAYER_COLORS: Record<string, string> = {
   electoral_2022: '#ec4899',
 };
 
+const TRUST_LAYER_OPTIONS = [
+  'slum_boundary',
+  'admin_ward',
+  'forest_cover',
+  'zone_industrial',
+  'zone_residential',
+  'road_network',
+] as const;
+
 function getLayerType(feature: GeoJSON.Feature | null | undefined): string {
   return String(feature?.properties?.layer_type ?? 'unknown');
 }
@@ -36,9 +67,17 @@ function formatLayerName(layerType: string): string {
 
 export default function UrbanMap() {
   const [year, setYear] = useState(2012);
-  const [geoData, setGeoData] = useState<GeoJSON.FeatureCollection | null>(null);
+  const [geoData, setGeoData] = useState<LayersApiResponse | null>(null);
+  const [verification, setVerification] = useState<VerificationPayload | null>(null);
   const [hoverInfo, setHoverInfo] = useState<HoverInfo | null>(null);
   const [selectedFeature, setSelectedFeature] = useState<GeoJSON.Feature | null>(null);
+  const [trustLayerType, setTrustLayerType] = useState<string>('slum_boundary');
+  const [isLoading, setIsLoading] = useState(false);
+  const [ledgerStatus, setLedgerStatus] = useState<LedgerStatusResponse | null>(null);
+  const [adminKey, setAdminKey] = useState('');
+  const [notarizeMessage, setNotarizeMessage] = useState('');
+  const [isNotarizing, setIsNotarizing] = useState(false);
+  const [refreshTick, setRefreshTick] = useState(0);
 
   // Layer Visibility State
   const [showWards, setShowWards] = useState(true);
@@ -50,11 +89,32 @@ export default function UrbanMap() {
 
   // Fetch data
   useEffect(() => {
-    fetch(`/api/v1/mumbai/layers?year=${year}`)
-      .then(res => res.json())
-      .then(data => setGeoData(data))
-      .catch(err => console.error("Failed to fetch layers:", err));
-  }, [year]);
+    setIsLoading(true);
+    fetch(`/api/v1/mumbai/layers?year=${year}&layer_type=${encodeURIComponent(trustLayerType)}`)
+      .then((res) => res.json())
+      .then((payload: VerifiedLayerResponse) => {
+        if (!Array.isArray(payload?.data?.features)) {
+          setGeoData(EMPTY_FC as LayersApiResponse);
+          setVerification(payload?.verification ?? null);
+          return;
+        }
+        setGeoData(payload.data);
+        setVerification(payload.verification ?? null);
+      })
+      .catch((err) => {
+        console.error('Failed to fetch layers:', err);
+        setGeoData(EMPTY_FC as LayersApiResponse);
+        setVerification({ is_verified: false, status_message: 'Verification Failed' });
+      })
+      .finally(() => setIsLoading(false));
+  }, [year, trustLayerType, refreshTick]);
+
+  useEffect(() => {
+    fetch('/api/v1/ledger/status')
+      .then((res) => res.json())
+      .then((data: LedgerStatusResponse) => setLedgerStatus(data))
+      .catch(() => setLedgerStatus({ connected: false, error: 'status endpoint unavailable' }));
+  }, []);
 
   // Filter the geoData based on what the user wants to see
   const filteredData = useMemo(() => {
@@ -106,6 +166,41 @@ export default function UrbanMap() {
 
   const selectedLayerType = getLayerType(selectedFeature);
   const selectedLayerColor = LAYER_COLORS[selectedLayerType] ?? '#888888';
+  const onChainVerified = Boolean(verification?.is_verified);
+  const canShowInspectorChainMeta = onChainVerified;
+  const chainUnavailable = ledgerStatus?.connected === false;
+
+  async function handleNotarize() {
+    setNotarizeMessage('');
+    setIsNotarizing(true);
+    try {
+      const response = await fetch('/api/admin/seal-history', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(adminKey ? { 'X-Admin-Key': adminKey } : {}),
+        },
+        body: JSON.stringify({
+          city: 'Mumbai',
+          layer_type: trustLayerType,
+          year,
+        }),
+      });
+
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setNotarizeMessage(`Notarize failed: ${String(payload?.error ?? response.statusText)}`);
+        return;
+      }
+
+      setNotarizeMessage('Notarized successfully. Refreshing trust check...');
+      setRefreshTick((v) => v + 1);
+    } catch (error) {
+      setNotarizeMessage(`Notarize failed: ${String(error)}`);
+    } finally {
+      setIsNotarizing(false);
+    }
+  }
 
   return (
     <div style={{ width: '100vw', height: '100vh', position: 'relative', fontFamily: 'sans-serif', background: '#000' }}>
@@ -189,6 +284,16 @@ export default function UrbanMap() {
           <p style={{ margin: 0, fontSize: '12px', color: '#b5b5b5' }}>
             Valid To: <span style={{ color: '#fff' }}>{String(selectedFeature.properties?.valid_to ?? 'Present')}</span>
           </p>
+          {canShowInspectorChainMeta && (
+            <>
+              <p style={{ margin: '8px 0 6px 0', fontSize: '12px', color: '#86efac', fontWeight: 700 }}>
+                Ledger Verified
+              </p>
+              <p style={{ margin: '0 0 6px 0', fontSize: '12px', color: '#b5b5b5' }}>
+                On-Chain Hash: <span style={{ color: '#fff' }}>{verification?.on_chain_hash || 'N/A'}</span>
+              </p>
+            </>
+          )}
         </div>
       )}
 
@@ -277,15 +382,95 @@ export default function UrbanMap() {
           <span style={{ color: '#aaa', fontWeight: '500', textTransform: 'uppercase', letterSpacing: '1px' }}>
             Temporal Delta Engine
           </span>
-          <span style={{ fontSize: '2.5rem', fontWeight: 'bold', color: '#fff', textShadow: '0 0 10px rgba(255,255,255,0.3)' }}>
-            {year}
-          </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#ccc', fontSize: '12px' }}>
+              <span>Verify Layer</span>
+              <select
+                value={trustLayerType}
+                onChange={(e) => setTrustLayerType(e.target.value)}
+                style={{
+                  background: '#111',
+                  color: '#fff',
+                  border: '1px solid #444',
+                  borderRadius: '6px',
+                  padding: '4px 8px',
+                  fontSize: '12px',
+                }}
+              >
+                {TRUST_LAYER_OPTIONS.map((layer) => (
+                  <option key={layer} value={layer}>
+                    {formatLayerName(layer)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <span title={verification?.status_message || (onChainVerified ? 'Ledger match confirmed' : 'Ledger mismatch or not sealed yet')}>
+              <IntegrityBadge verification={verification ?? undefined} />
+            </span>
+            <span style={{ fontSize: '11px', color: '#9ca3af' }}>{verification?.status_message || 'Verification Pending'}</span>
+            <span style={{ fontSize: '2.5rem', fontWeight: 'bold', color: '#fff', textShadow: '0 0 10px rgba(255,255,255,0.3)' }}>
+              {year}
+            </span>
+          </div>
         </div>
         <input
           type="range" min="1991" max="2024" value={year}
           onChange={(e) => setYear(parseInt(e.target.value))}
           style={{ width: '100%', cursor: 'pointer', height: '6px', background: '#444', borderRadius: '3px', outline: 'none' }}
         />
+        {isLoading && (
+          <p style={{ margin: 0, fontSize: '12px', color: '#9ca3af' }}>Verifying current layer hash against ledger...</p>
+        )}
+        {!isLoading && verification?.status_message && verification.status_message !== 'Match Found' && (
+          <p style={{ margin: 0, fontSize: '12px', color: '#fca5a5' }}>Trust check: {verification.status_message}</p>
+        )}
+        {chainUnavailable && (
+          <p style={{ margin: 0, fontSize: '12px', color: '#fbbf24' }}>
+            Ledger status: unavailable ({ledgerStatus?.error || 'unable to connect'})
+          </p>
+        )}
+        {!chainUnavailable && ledgerStatus?.connected && (
+          <p style={{ margin: 0, fontSize: '12px', color: '#86efac' }}>Ledger status: connected</p>
+        )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+          <input
+            type="password"
+            value={adminKey}
+            onChange={(e) => setAdminKey(e.target.value)}
+            placeholder="Admin API key"
+            style={{
+              background: '#111',
+              color: '#fff',
+              border: '1px solid #444',
+              borderRadius: '6px',
+              padding: '6px 8px',
+              fontSize: '12px',
+              minWidth: '180px',
+            }}
+          />
+          <button
+            type="button"
+            onClick={handleNotarize}
+            disabled={isNotarizing || chainUnavailable}
+            style={{
+              border: '1px solid #065f46',
+              background: isNotarizing || chainUnavailable ? '#1f2937' : '#064e3b',
+              color: '#d1fae5',
+              borderRadius: '6px',
+              padding: '6px 10px',
+              fontSize: '12px',
+              fontWeight: 700,
+              cursor: isNotarizing || chainUnavailable ? 'not-allowed' : 'pointer',
+            }}
+          >
+            {isNotarizing ? 'Notarizing...' : 'Notarize Selected Layer'}
+          </button>
+        </div>
+        {notarizeMessage && (
+          <p style={{ margin: 0, fontSize: '12px', color: notarizeMessage.startsWith('Notarized') ? '#86efac' : '#fca5a5' }}>
+            {notarizeMessage}
+          </p>
+        )}
         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: '#666', fontWeight: 'bold' }}>
           <span>1991 (Baseline)</span>
           <span>2000 (Slum Data Start)</span>

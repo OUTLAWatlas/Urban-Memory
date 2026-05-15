@@ -141,13 +141,24 @@ Exposed services:
 
 ### 3) Run the API Service
 
-```bash
+```powershell
 cd apps/api
 go mod tidy
-set PORT=4000
-set DATABASE_URL=postgres://pilot_user:pilot_password@localhost:5432/urban_memory_backend?sslmode=disable
-go run main.go
+$env:PORT="4000"
+$env:DATABASE_URL="postgres://pilot_user:pilot_password@localhost:5432/urban_memory_backend?sslmode=disable"
+go run .
 ```
+
+If you are using Command Prompt (cmd.exe), use `set PORT=4000` and `set DATABASE_URL=...` instead.
+
+On Windows, if you see a cgo compiler error like "cc1.exe: sorry, unimplemented: 64-bit mode not compiled in", use:
+
+```powershell
+$env:CGO_ENABLED="0"
+go run .
+```
+
+If you are using Command Prompt (cmd.exe), use `set CGO_ENABLED=0` instead.
 
 > Note: Architecture target is **:8000**. Current web rewrite config points to **:4000** in local development.
 
@@ -201,11 +212,37 @@ Requires **Node.js 22.10.0+** LTS. See [contracts/SETUP.md](contracts/SETUP.md) 
 
 Returns all spatial artifacts valid for the supplied calendar year using bitemporal constraints.
 
+Optional trust query parameters:
+
+- `trust_layer_type` – layer to verify against the on-chain hash for that year.
+- `layer_type` – filter returned features to a specific layer type.
+
+Trust fields returned in the same payload:
+
+- `trust_score` (`0` or `100`)
+- `on_chain_verified` (`true` if DB hash matches ledger hash)
+- `verified_layer_type`, `on_chain_timestamp_unix`, `on_chain_source`
+
 ### Example Request
 
 ```bash
-curl "http://localhost:4000/api/v1/mumbai/layers?year=2012"
+curl "http://localhost:4000/api/v1/mumbai/layers?year=2012&trust_layer_type=slum_boundary"
 ```
+
+### Admin Notarize Route
+
+`POST /api/v1/admin/notarize`
+
+Protected route to commit the current DB hash for a layer/year to the UrbanLedger contract.
+
+```bash
+curl -X POST "http://localhost:4000/api/v1/admin/notarize" \
+  -H "Content-Type: application/json" \
+  -H "X-Admin-Key: <ADMIN_API_KEY>" \
+  -d '{"city":"Mumbai","layer_type":"slum_boundary","year":2012}'
+```
+
+Set `ADMIN_API_KEY` in the API environment before starting the server.
 
 ### Example Response (truncated)
 
