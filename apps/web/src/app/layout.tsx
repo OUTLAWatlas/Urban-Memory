@@ -1,5 +1,8 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { GlobalHeader } from "./components/GlobalHeader";
+import { AppShell } from "./components/AppShell";
+import { SessionProvider } from "./components/session-provider";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -13,8 +16,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "UrbanMemory",
-  description: "Urban Operating System for Mumbai",
+  title: "UrbanMemory | Civic Intelligence Layer",
+  description: "Split access civic mapping and governance workflow for Mumbai",
 };
 
 export default function RootLayout({
@@ -27,7 +30,10 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        {children}
+        <SessionProvider>
+          <GlobalHeader />
+          <AppShell>{children}</AppShell>
+        </SessionProvider>
       </body>
     </html>
   );

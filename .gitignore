@@ -14,11 +14,13 @@ apps/api/api.exe
 # Go
 *.test
 *.out
+/apps/api/.gocache/
 
 # Environment variables
 .env
 .env.*
 !.env.example
+apps/api/.env
 
 # OS files
 .DS_Store
@@ -63,6 +65,7 @@ contracts/artifacts/
 contracts/cache/
 contracts/types/
 contracts/coverage/
+contracts/deployed-address.json
 
 # Generated data
 data/scripts/mumbai_mock_data.geojson

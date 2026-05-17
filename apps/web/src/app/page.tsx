@@ -1,10 +1,7 @@
-import UrbanMap from './components/Map';
+'use client';
+
+import { CinematicLanding } from './components/cinematic-landing';
 
 export default function Home() {
-  return (
-    <main>
-      <UrbanMap />
-    </main>
-  );
+  return <CinematicLanding />;
 }
-

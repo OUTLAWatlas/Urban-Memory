@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"log"
 	"math/big"
 	"os"
 	"strconv"
@@ -27,6 +28,8 @@ const (
 	defaultHardhatPrivateKey = "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
 )
 
+var ErrBlockchainDisabled = errors.New("blockchain integration disabled")
+
 type BlockchainService struct {
 	client          *ethclient.Client
 	ledger          *UrbanLedger
@@ -41,12 +44,17 @@ type HashVerificationResult struct {
 	Year            uint16
 	ExpectedHash    string
 	OnChainHash     string
+	OnChainIPFSCID  string
 	OnChainSource   string
 	OnChainUnixTime uint64
 	Match           bool
 }
 
 func NewBlockchainService(ctx context.Context) (*BlockchainService, error) {
+	if !isBlockchainEnabled() {
+		return nil, ErrBlockchainDisabled
+	}
+
 	nodeURL := getEnv("ETH_NODE_URL", defaultNodeURL)
 	contractAddrHex := getEnv("LEDGER_CONTRACT_ADDRESS", defaultContractAddress)
 	sourceRef := getEnv("LEDGER_SOURCE_REF", "UrbanMemory API")
@@ -101,7 +109,7 @@ func GenerateSHA256Hash(geoJSONData []byte) string {
 	return hex.EncodeToString(h[:])
 }
 
-func (s *BlockchainService) CommitHashToLedger(ctx context.Context, layerType string, year uint16, sha256Hash string) (common.Hash, error) {
+func (s *BlockchainService) CommitHashToLedger(ctx context.Context, layerType string, year uint16, sha256Hash string, ipfsCID string) (common.Hash, error) {
 	if s == nil || s.client == nil || s.ledger == nil {
 		return common.Hash{}, errors.New("blockchain service is not initialized")
 	}
@@ -110,6 +118,9 @@ func (s *BlockchainService) CommitHashToLedger(ctx context.Context, layerType st
 	}
 	if strings.TrimSpace(sha256Hash) == "" {
 		return common.Hash{}, errors.New("sha256Hash is required")
+	}
+	if strings.TrimSpace(ipfsCID) == "" {
+		return common.Hash{}, errors.New("ipfsCID is required")
 	}
 
 	fromAddress := crypto.PubkeyToAddress(s.privateKey.PublicKey)
@@ -130,7 +141,7 @@ func (s *BlockchainService) CommitHashToLedger(ctx context.Context, layerType st
 		transactor.GasPrice = gasPrice
 	}
 
-	tx, err := s.ledger.CommitLayerHash(transactor, layerType, year, sha256Hash, s.sourceRef)
+	tx, err := s.ledger.CommitLayerHash(transactor, layerType, year, sha256Hash, ipfsCID, s.sourceRef)
 	if err != nil {
 		return common.Hash{}, fmt.Errorf("commitLayerHash tx submission failed: %w", err)
 	}
@@ -165,19 +176,35 @@ func (s *BlockchainService) VerifyHashOnChain(ctx context.Context, layerType str
 	expectedHash := GenerateSHA256Hash(currentGeoJSON)
 	result.ExpectedHash = expectedHash
 
-	onChainHash, onChainTs, onChainSource, err := s.ledger.VerifyLayer(&bind.CallOpts{Context: ctx}, layerType, year)
+	onChainHash, onChainTs, onChainSource, onChainCID, err := s.ledger.VerifyLayer(&bind.CallOpts{Context: ctx}, layerType, year)
 	if err != nil {
+		if isUnnotarizedLayerError(err) {
+			log.Printf("⚠️ Blockchain Notice: Requested layer/year is currently unnotarized. Proceeding with pipeline.")
+			result.Match = false
+			return result, nil
+		}
 		return result, fmt.Errorf("verifyLayer call failed: %w", err)
 	}
 
 	result.OnChainHash = onChainHash
 	result.OnChainSource = onChainSource
+	result.OnChainIPFSCID = onChainCID
 	if onChainTs != nil {
 		result.OnChainUnixTime = onChainTs.Uint64()
 	}
 
 	result.Match = strings.EqualFold(strings.TrimSpace(onChainHash), strings.TrimSpace(expectedHash))
 	return result, nil
+}
+
+func isUnnotarizedLayerError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	errText := err.Error()
+	return strings.Contains(errText, "No cryptographic record found") ||
+		strings.Contains(errText, "VM Exception while processing transaction: reverted")
 }
 
 func BuildLayerGeoJSONHash(ctx context.Context, db *sql.DB, cityName, layerType string, year uint16) (string, []byte, error) {
@@ -223,4 +250,39 @@ func getUint16Env(key string, fallback uint16) (uint16, error) {
 		return 0, fmt.Errorf("invalid %s: %w", key, err)
 	}
 	return uint16(parsed), nil
+}
+
+func isBlockchainEnabled() bool {
+	raw := strings.TrimSpace(strings.ToLower(os.Getenv("BLOCKCHAIN_ENABLED")))
+	switch raw {
+	case "", "1", "true", "yes", "on":
+		return true
+	case "0", "false", "no", "off":
+		return false
+	default:
+		return true
+	}
+}
+
+func isBlockchainUnavailableError(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, ErrBlockchainDisabled) {
+		return true
+	}
+
+	message := strings.ToLower(strings.TrimSpace(err.Error()))
+	return strings.Contains(message, "connectex") ||
+		strings.Contains(message, "connect refused") ||
+		strings.Contains(message, "actively refused") ||
+		strings.Contains(message, "read chain id") ||
+		strings.Contains(message, "connect ethereum node")
+}
+
+func blockchainUnavailableMessage(err error) string {
+	if errors.Is(err, ErrBlockchainDisabled) {
+		return "blockchain integration disabled"
+	}
+	return "blockchain unavailable"
 }

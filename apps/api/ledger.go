@@ -31,7 +31,7 @@ var (
 
 // UrbanLedgerMetaData contains all meta data concerning the UrbanLedger contract.
 var UrbanLedgerMetaData = &bind.MetaData{
-	ABI: "[{\"inputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"constructor\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"string\",\"name\":\"layerType\",\"type\":\"string\"},{\"indexed\":false,\"internalType\":\"uint16\",\"name\":\"year\",\"type\":\"uint16\"},{\"indexed\":false,\"internalType\":\"string\",\"name\":\"sha256Hash\",\"type\":\"string\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"timestamp\",\"type\":\"uint256\"}],\"name\":\"HashCommitted\",\"type\":\"event\"},{\"inputs\":[],\"name\":\"admin\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"string\",\"name\":\"_layerType\",\"type\":\"string\"},{\"internalType\":\"uint16\",\"name\":\"_year\",\"type\":\"uint16\"},{\"internalType\":\"string\",\"name\":\"_sha256Hash\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"_sourceRef\",\"type\":\"string\"}],\"name\":\"commitLayerHash\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"string\",\"name\":\"\",\"type\":\"string\"},{\"internalType\":\"uint16\",\"name\":\"\",\"type\":\"uint16\"}],\"name\":\"layerRegistry\",\"outputs\":[{\"internalType\":\"string\",\"name\":\"sha256Hash\",\"type\":\"string\"},{\"internalType\":\"uint256\",\"name\":\"timestamp\",\"type\":\"uint256\"},{\"internalType\":\"string\",\"name\":\"sourceRef\",\"type\":\"string\"},{\"internalType\":\"bool\",\"name\":\"exists\",\"type\":\"bool\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"string\",\"name\":\"_layerType\",\"type\":\"string\"},{\"internalType\":\"uint16\",\"name\":\"_year\",\"type\":\"uint16\"}],\"name\":\"verifyLayer\",\"outputs\":[{\"internalType\":\"string\",\"name\":\"\",\"type\":\"string\"},{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"},{\"internalType\":\"string\",\"name\":\"\",\"type\":\"string\"}],\"stateMutability\":\"view\",\"type\":\"function\"}]",
+	ABI: "[{\"inputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"constructor\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"string\",\"name\":\"layerType\",\"type\":\"string\"},{\"indexed\":false,\"internalType\":\"uint16\",\"name\":\"year\",\"type\":\"uint16\"},{\"indexed\":false,\"internalType\":\"string\",\"name\":\"sha256Hash\",\"type\":\"string\"},{\"indexed\":false,\"internalType\":\"string\",\"name\":\"ipfsCID\",\"type\":\"string\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"timestamp\",\"type\":\"uint256\"}],\"name\":\"HashCommitted\",\"type\":\"event\"},{\"inputs\":[],\"name\":\"admin\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"string\",\"name\":\"_layerType\",\"type\":\"string\"},{\"internalType\":\"uint16\",\"name\":\"_year\",\"type\":\"uint16\"},{\"internalType\":\"string\",\"name\":\"_sha256Hash\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"_ipfsCID\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"_sourceRef\",\"type\":\"string\"}],\"name\":\"commitLayerHash\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"string\",\"name\":\"\",\"type\":\"string\"},{\"internalType\":\"uint16\",\"name\":\"\",\"type\":\"uint16\"}],\"name\":\"layerRegistry\",\"outputs\":[{\"internalType\":\"string\",\"name\":\"sha256Hash\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"ipfsCID\",\"type\":\"string\"},{\"internalType\":\"uint256\",\"name\":\"timestamp\",\"type\":\"uint256\"},{\"internalType\":\"string\",\"name\":\"sourceRef\",\"type\":\"string\"},{\"internalType\":\"bool\",\"name\":\"exists\",\"type\":\"bool\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"string\",\"name\":\"_layerType\",\"type\":\"string\"},{\"internalType\":\"uint16\",\"name\":\"_year\",\"type\":\"uint16\"}],\"name\":\"verifyLayer\",\"outputs\":[{\"internalType\":\"string\",\"name\":\"\",\"type\":\"string\"},{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"},{\"internalType\":\"string\",\"name\":\"\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"\",\"type\":\"string\"}],\"stateMutability\":\"view\",\"type\":\"function\"}]",
 }
 
 // UrbanLedgerABI is the input ABI used to generate the binding from.
@@ -213,9 +213,10 @@ func (_UrbanLedger *UrbanLedgerCallerSession) Admin() (common.Address, error) {
 
 // LayerRegistry is a free data retrieval call binding the contract method 0x96f77030.
 //
-// Solidity: function layerRegistry(string , uint16 ) view returns(string sha256Hash, uint256 timestamp, string sourceRef, bool exists)
+// Solidity: function layerRegistry(string , uint16 ) view returns(string sha256Hash, string ipfsCID, uint256 timestamp, string sourceRef, bool exists)
 func (_UrbanLedger *UrbanLedgerCaller) LayerRegistry(opts *bind.CallOpts, arg0 string, arg1 uint16) (struct {
 	Sha256Hash string
+	IpfsCID    string
 	Timestamp  *big.Int
 	SourceRef  string
 	Exists     bool
@@ -225,6 +226,7 @@ func (_UrbanLedger *UrbanLedgerCaller) LayerRegistry(opts *bind.CallOpts, arg0 s
 
 	outstruct := new(struct {
 		Sha256Hash string
+		IpfsCID    string
 		Timestamp  *big.Int
 		SourceRef  string
 		Exists     bool
@@ -234,9 +236,10 @@ func (_UrbanLedger *UrbanLedgerCaller) LayerRegistry(opts *bind.CallOpts, arg0 s
 	}
 
 	outstruct.Sha256Hash = *abi.ConvertType(out[0], new(string)).(*string)
-	outstruct.Timestamp = *abi.ConvertType(out[1], new(*big.Int)).(**big.Int)
-	outstruct.SourceRef = *abi.ConvertType(out[2], new(string)).(*string)
-	outstruct.Exists = *abi.ConvertType(out[3], new(bool)).(*bool)
+	outstruct.IpfsCID = *abi.ConvertType(out[1], new(string)).(*string)
+	outstruct.Timestamp = *abi.ConvertType(out[2], new(*big.Int)).(**big.Int)
+	outstruct.SourceRef = *abi.ConvertType(out[3], new(string)).(*string)
+	outstruct.Exists = *abi.ConvertType(out[4], new(bool)).(*bool)
 
 	return *outstruct, err
 
@@ -244,9 +247,10 @@ func (_UrbanLedger *UrbanLedgerCaller) LayerRegistry(opts *bind.CallOpts, arg0 s
 
 // LayerRegistry is a free data retrieval call binding the contract method 0x96f77030.
 //
-// Solidity: function layerRegistry(string , uint16 ) view returns(string sha256Hash, uint256 timestamp, string sourceRef, bool exists)
+// Solidity: function layerRegistry(string , uint16 ) view returns(string sha256Hash, string ipfsCID, uint256 timestamp, string sourceRef, bool exists)
 func (_UrbanLedger *UrbanLedgerSession) LayerRegistry(arg0 string, arg1 uint16) (struct {
 	Sha256Hash string
+	IpfsCID    string
 	Timestamp  *big.Int
 	SourceRef  string
 	Exists     bool
@@ -256,9 +260,10 @@ func (_UrbanLedger *UrbanLedgerSession) LayerRegistry(arg0 string, arg1 uint16) 
 
 // LayerRegistry is a free data retrieval call binding the contract method 0x96f77030.
 //
-// Solidity: function layerRegistry(string , uint16 ) view returns(string sha256Hash, uint256 timestamp, string sourceRef, bool exists)
+// Solidity: function layerRegistry(string , uint16 ) view returns(string sha256Hash, string ipfsCID, uint256 timestamp, string sourceRef, bool exists)
 func (_UrbanLedger *UrbanLedgerCallerSession) LayerRegistry(arg0 string, arg1 uint16) (struct {
 	Sha256Hash string
+	IpfsCID    string
 	Timestamp  *big.Int
 	SourceRef  string
 	Exists     bool
@@ -268,56 +273,57 @@ func (_UrbanLedger *UrbanLedgerCallerSession) LayerRegistry(arg0 string, arg1 ui
 
 // VerifyLayer is a free data retrieval call binding the contract method 0xfd6ca9fa.
 //
-// Solidity: function verifyLayer(string _layerType, uint16 _year) view returns(string, uint256, string)
-func (_UrbanLedger *UrbanLedgerCaller) VerifyLayer(opts *bind.CallOpts, _layerType string, _year uint16) (string, *big.Int, string, error) {
+// Solidity: function verifyLayer(string _layerType, uint16 _year) view returns(string, uint256, string, string)
+func (_UrbanLedger *UrbanLedgerCaller) VerifyLayer(opts *bind.CallOpts, _layerType string, _year uint16) (string, *big.Int, string, string, error) {
 	var out []interface{}
 	err := _UrbanLedger.contract.Call(opts, &out, "verifyLayer", _layerType, _year)
 
 	if err != nil {
-		return *new(string), *new(*big.Int), *new(string), err
+		return *new(string), *new(*big.Int), *new(string), *new(string), err
 	}
 
 	out0 := *abi.ConvertType(out[0], new(string)).(*string)
 	out1 := *abi.ConvertType(out[1], new(*big.Int)).(**big.Int)
 	out2 := *abi.ConvertType(out[2], new(string)).(*string)
+	out3 := *abi.ConvertType(out[3], new(string)).(*string)
 
-	return out0, out1, out2, err
+	return out0, out1, out2, out3, err
 
 }
 
 // VerifyLayer is a free data retrieval call binding the contract method 0xfd6ca9fa.
 //
-// Solidity: function verifyLayer(string _layerType, uint16 _year) view returns(string, uint256, string)
-func (_UrbanLedger *UrbanLedgerSession) VerifyLayer(_layerType string, _year uint16) (string, *big.Int, string, error) {
+// Solidity: function verifyLayer(string _layerType, uint16 _year) view returns(string, uint256, string, string)
+func (_UrbanLedger *UrbanLedgerSession) VerifyLayer(_layerType string, _year uint16) (string, *big.Int, string, string, error) {
 	return _UrbanLedger.Contract.VerifyLayer(&_UrbanLedger.CallOpts, _layerType, _year)
 }
 
 // VerifyLayer is a free data retrieval call binding the contract method 0xfd6ca9fa.
 //
-// Solidity: function verifyLayer(string _layerType, uint16 _year) view returns(string, uint256, string)
-func (_UrbanLedger *UrbanLedgerCallerSession) VerifyLayer(_layerType string, _year uint16) (string, *big.Int, string, error) {
+// Solidity: function verifyLayer(string _layerType, uint16 _year) view returns(string, uint256, string, string)
+func (_UrbanLedger *UrbanLedgerCallerSession) VerifyLayer(_layerType string, _year uint16) (string, *big.Int, string, string, error) {
 	return _UrbanLedger.Contract.VerifyLayer(&_UrbanLedger.CallOpts, _layerType, _year)
 }
 
-// CommitLayerHash is a paid mutator transaction binding the contract method 0x1b8b7ce7.
+// CommitLayerHash is a paid mutator transaction binding the contract method 0x4415dbb9.
 //
-// Solidity: function commitLayerHash(string _layerType, uint16 _year, string _sha256Hash, string _sourceRef) returns()
-func (_UrbanLedger *UrbanLedgerTransactor) CommitLayerHash(opts *bind.TransactOpts, _layerType string, _year uint16, _sha256Hash string, _sourceRef string) (*types.Transaction, error) {
-	return _UrbanLedger.contract.Transact(opts, "commitLayerHash", _layerType, _year, _sha256Hash, _sourceRef)
+// Solidity: function commitLayerHash(string _layerType, uint16 _year, string _sha256Hash, string _ipfsCID, string _sourceRef) returns()
+func (_UrbanLedger *UrbanLedgerTransactor) CommitLayerHash(opts *bind.TransactOpts, _layerType string, _year uint16, _sha256Hash string, _ipfsCID string, _sourceRef string) (*types.Transaction, error) {
+	return _UrbanLedger.contract.Transact(opts, "commitLayerHash", _layerType, _year, _sha256Hash, _ipfsCID, _sourceRef)
 }
 
-// CommitLayerHash is a paid mutator transaction binding the contract method 0x1b8b7ce7.
+// CommitLayerHash is a paid mutator transaction binding the contract method 0x4415dbb9.
 //
-// Solidity: function commitLayerHash(string _layerType, uint16 _year, string _sha256Hash, string _sourceRef) returns()
-func (_UrbanLedger *UrbanLedgerSession) CommitLayerHash(_layerType string, _year uint16, _sha256Hash string, _sourceRef string) (*types.Transaction, error) {
-	return _UrbanLedger.Contract.CommitLayerHash(&_UrbanLedger.TransactOpts, _layerType, _year, _sha256Hash, _sourceRef)
+// Solidity: function commitLayerHash(string _layerType, uint16 _year, string _sha256Hash, string _ipfsCID, string _sourceRef) returns()
+func (_UrbanLedger *UrbanLedgerSession) CommitLayerHash(_layerType string, _year uint16, _sha256Hash string, _ipfsCID string, _sourceRef string) (*types.Transaction, error) {
+	return _UrbanLedger.Contract.CommitLayerHash(&_UrbanLedger.TransactOpts, _layerType, _year, _sha256Hash, _ipfsCID, _sourceRef)
 }
 
-// CommitLayerHash is a paid mutator transaction binding the contract method 0x1b8b7ce7.
+// CommitLayerHash is a paid mutator transaction binding the contract method 0x4415dbb9.
 //
-// Solidity: function commitLayerHash(string _layerType, uint16 _year, string _sha256Hash, string _sourceRef) returns()
-func (_UrbanLedger *UrbanLedgerTransactorSession) CommitLayerHash(_layerType string, _year uint16, _sha256Hash string, _sourceRef string) (*types.Transaction, error) {
-	return _UrbanLedger.Contract.CommitLayerHash(&_UrbanLedger.TransactOpts, _layerType, _year, _sha256Hash, _sourceRef)
+// Solidity: function commitLayerHash(string _layerType, uint16 _year, string _sha256Hash, string _ipfsCID, string _sourceRef) returns()
+func (_UrbanLedger *UrbanLedgerTransactorSession) CommitLayerHash(_layerType string, _year uint16, _sha256Hash string, _ipfsCID string, _sourceRef string) (*types.Transaction, error) {
+	return _UrbanLedger.Contract.CommitLayerHash(&_UrbanLedger.TransactOpts, _layerType, _year, _sha256Hash, _ipfsCID, _sourceRef)
 }
 
 // UrbanLedgerHashCommittedIterator is returned from FilterHashCommitted and is used to iterate over the raw logs and unpacked data for HashCommitted events raised by the UrbanLedger contract.
@@ -392,13 +398,14 @@ type UrbanLedgerHashCommitted struct {
 	LayerType  string
 	Year       uint16
 	Sha256Hash string
+	IpfsCID    string
 	Timestamp  *big.Int
 	Raw        types.Log // Blockchain specific contextual infos
 }
 
-// FilterHashCommitted is a free log retrieval operation binding the contract event 0xc3221f60a3b76fb3baddf397ed6d8d20608a76a7c2da4fb9bde46a324e7a01f1.
+// FilterHashCommitted is a free log retrieval operation binding the contract event 0x12705e15fea18204dc9bb85d7b69730d005200aecbc6e55fb88d875e3adb9bd3.
 //
-// Solidity: event HashCommitted(string layerType, uint16 year, string sha256Hash, uint256 timestamp)
+// Solidity: event HashCommitted(string layerType, uint16 year, string sha256Hash, string ipfsCID, uint256 timestamp)
 func (_UrbanLedger *UrbanLedgerFilterer) FilterHashCommitted(opts *bind.FilterOpts) (*UrbanLedgerHashCommittedIterator, error) {
 
 	logs, sub, err := _UrbanLedger.contract.FilterLogs(opts, "HashCommitted")
@@ -408,9 +415,9 @@ func (_UrbanLedger *UrbanLedgerFilterer) FilterHashCommitted(opts *bind.FilterOp
 	return &UrbanLedgerHashCommittedIterator{contract: _UrbanLedger.contract, event: "HashCommitted", logs: logs, sub: sub}, nil
 }
 
-// WatchHashCommitted is a free log subscription operation binding the contract event 0xc3221f60a3b76fb3baddf397ed6d8d20608a76a7c2da4fb9bde46a324e7a01f1.
+// WatchHashCommitted is a free log subscription operation binding the contract event 0x12705e15fea18204dc9bb85d7b69730d005200aecbc6e55fb88d875e3adb9bd3.
 //
-// Solidity: event HashCommitted(string layerType, uint16 year, string sha256Hash, uint256 timestamp)
+// Solidity: event HashCommitted(string layerType, uint16 year, string sha256Hash, string ipfsCID, uint256 timestamp)
 func (_UrbanLedger *UrbanLedgerFilterer) WatchHashCommitted(opts *bind.WatchOpts, sink chan<- *UrbanLedgerHashCommitted) (event.Subscription, error) {
 
 	logs, sub, err := _UrbanLedger.contract.WatchLogs(opts, "HashCommitted")
@@ -445,9 +452,9 @@ func (_UrbanLedger *UrbanLedgerFilterer) WatchHashCommitted(opts *bind.WatchOpts
 	}), nil
 }
 
-// ParseHashCommitted is a log parse operation binding the contract event 0xc3221f60a3b76fb3baddf397ed6d8d20608a76a7c2da4fb9bde46a324e7a01f1.
+// ParseHashCommitted is a log parse operation binding the contract event 0x12705e15fea18204dc9bb85d7b69730d005200aecbc6e55fb88d875e3adb9bd3.
 //
-// Solidity: event HashCommitted(string layerType, uint16 year, string sha256Hash, uint256 timestamp)
+// Solidity: event HashCommitted(string layerType, uint16 year, string sha256Hash, string ipfsCID, uint256 timestamp)
 func (_UrbanLedger *UrbanLedgerFilterer) ParseHashCommitted(log types.Log) (*UrbanLedgerHashCommitted, error) {
 	event := new(UrbanLedgerHashCommitted)
 	if err := _UrbanLedger.contract.UnpackLog(event, "HashCommitted", log); err != nil {

@@ -7,14 +7,19 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/gofiber/fiber/v2"
+	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
+	"github.com/yourusername/urban-memory/api/controllers"
+	"github.com/yourusername/urban-memory/api/services"
 )
 
 var (
@@ -23,8 +28,8 @@ var (
 	verifyHashOnChainFn     = func(svc *BlockchainService, ctx context.Context, layerType string, year uint16, currentGeoJSON []byte) (HashVerificationResult, error) {
 		return svc.VerifyHashOnChain(ctx, layerType, year, currentGeoJSON)
 	}
-	commitHashToLedgerFn = func(svc *BlockchainService, ctx context.Context, layerType string, year uint16, sha256Hash string) (common.Hash, error) {
-		return svc.CommitHashToLedger(ctx, layerType, year, sha256Hash)
+	commitHashToLedgerFn = func(svc *BlockchainService, ctx context.Context, layerType string, year uint16, sha256Hash string, ipfsCID string) (common.Hash, error) {
+		return svc.CommitHashToLedger(ctx, layerType, year, sha256Hash, ipfsCID)
 	}
 	appDB           *sql.DB
 	defaultDataCity = "Mumbai"
@@ -85,6 +90,18 @@ type commitLedgerRequest struct {
 }
 
 func main() {
+	if err := godotenv.Load(); err != nil {
+		log.Printf(".env not loaded (continuing with OS env): %v", err)
+	}
+
+	// Auto-load contract address from Hardhat deployment if not set
+	if os.Getenv("LEDGER_CONTRACT_ADDRESS") == "" {
+		if addr := loadDeployedContractAddress(); addr != "" {
+			os.Setenv("LEDGER_CONTRACT_ADDRESS", addr)
+			log.Printf("📝 Auto-loaded contract address from deployment: %s", addr)
+		}
+	}
+
 	dsn := getEnv("DATABASE_URL", "postgres://pilot_user:pilot_password@localhost:5432/urban_memory_backend?sslmode=disable")
 
 	db, err := sql.Open("postgres", dsn)
@@ -96,7 +113,19 @@ func main() {
 	if err := db.Ping(); err != nil {
 		log.Fatalf("database unreachable: %v", err)
 	}
+	mailer, err := services.NewSMTPMailerFromEnv()
+	if err != nil {
+		log.Fatalf("mail service configuration failed: %v", err)
+	}
 	log.Println("connected to PostGIS database")
+	if err := controllers.EnsureBootstrapSuperAdmin(context.Background(), db); err != nil {
+		log.Fatalf("failed to provision bootstrap super admin: %v", err)
+	}
+	log.Printf("bootstrap super admin ensured: username=%s role=%s",
+		controllers.BootstrapSuperAdminIdentifier,
+		controllers.AdminRoleSuperAdmin,
+	)
+	services.ConfigureOTPStorage(db)
 
 	app := fiber.New(fiber.Config{
 		AppName: "UrbanMemory API",
@@ -104,104 +133,39 @@ func main() {
 	appDB = db
 	defaultDataCity = strings.TrimSpace(getEnv("DEFAULT_CITY", "Mumbai"))
 
+	app.Post("/api/admin/register", controllers.RegisterAdmin(db))
+	app.Post("/api/admin/login", controllers.LoginAdmin(db))
+	app.Get("/api/admin/pending-users", controllers.ListPendingAdmins(db))
+	app.Post("/api/admin/request-approve-user", controllers.RequestApproveAdminOTP(db, mailer))
+	app.Post("/api/admin/approve-user", controllers.ApproveAdmin(db, mailer))
+	app.Post("/api/v1/admin/request-password-change", controllers.RequestPasswordChange(db, mailer))
+	app.Post("/api/v1/admin/confirm-password-change", controllers.ConfirmPasswordChange(db))
+
 	app.Get("/api/v1/:city/layers", GetVerifiedLayer())
 	app.Post("/api/v1/ledger/commit", adminAuthRequired(), NotarizeLayer())
 	app.Post("/api/v1/admin/notarize", adminAuthRequired(), NotarizeLayer())
+	app.Post("/api/v1/admin/request-notary", RequestNotary(db, mailer))
+	app.Post("/api/v1/admin/confirm-notary", ConfirmNotary(db))
+	app.Post("/api/v1/admin/seal-decentralized", ConfirmNotary(db))
 	app.Post("/api/admin/seal-history", adminAuthRequired(), NotarizeLayer())
 	app.Get("/api/v1/ledger/status", handleLedgerStatus())
 	app.Get("/api/v1/ledger/verify", handleVerifyLedger(db))
 
 	port := getEnv("PORT", "4000")
-	log.Fatal(app.Listen(":" + port))
+	if err := app.Listen(":" + port); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		log.Fatalf("failed to listen: %v", err)
+	}
 }
 
 func GetLayerData(layerType string, year int) (LayerGeoJSON, error) {
-	return getLayerDataByCity(defaultDataCity, layerType, year)
-}
-
-func getLayerDataByCity(city, layerType string, year int) (LayerGeoJSON, error) {
-	if appDB == nil {
-		return LayerGeoJSON{}, errors.New("database not initialized")
-	}
-	if strings.TrimSpace(layerType) == "" {
-		return LayerGeoJSON{}, errors.New("layer_type is required")
-	}
-
-	query := `
-		SELECT
-			id,
-			city_name,
-			layer_type,
-			valid_from,
-			valid_to,
-			source_ref,
-			ST_AsGeoJSON(ST_SnapToGrid(geom, 0.000001), 6, 0) AS geojson
-		FROM urban_artifacts
-		WHERE city_name ILIKE $1
-		  AND layer_type = $2
-		  AND valid_from <= make_date($3, 12, 31)
-		  AND (valid_to IS NULL OR valid_to >= make_date($3, 1, 1))
-		ORDER BY id;
-	`
-
-	rows, err := appDB.Query(query, city, layerType, year)
-	if err != nil {
-		return LayerGeoJSON{}, fmt.Errorf("query layer data: %w", err)
-	}
-	defer rows.Close()
-
-	features := make([]Feature, 0)
-	for rows.Next() {
-		var (
-			id        int
-			cityName  string
-			layerName string
-			validFrom time.Time
-			validTo   sql.NullTime
-			sourceRef sql.NullString
-			geoJSON   string
-		)
-
-		if err := rows.Scan(&id, &cityName, &layerName, &validFrom, &validTo, &sourceRef, &geoJSON); err != nil {
-			return LayerGeoJSON{}, fmt.Errorf("scan layer row: %w", err)
-		}
-
-		validFromStr := validFrom.UTC().Format(time.RFC3339)
-		var validToStr *string
-		if validTo.Valid {
-			formatted := validTo.Time.UTC().Format(time.RFC3339)
-			validToStr = &formatted
-		}
-
-		var sourceRefPtr *string
-		if sourceRef.Valid {
-			src := sourceRef.String
-			sourceRefPtr = &src
-		}
-
-		features = append(features, Feature{
-			Type: "Feature",
-			Properties: FeatureProps{
-				ID:        id,
-				CityName:  cityName,
-				LayerType: layerName,
-				ValidFrom: validFromStr,
-				ValidTo:   validToStr,
-				SourceRef: sourceRefPtr,
-			},
-			Geometry: json.RawMessage(geoJSON),
-		})
-	}
-
-	if err := rows.Err(); err != nil {
-		return LayerGeoJSON{}, fmt.Errorf("iterate layer rows: %w", err)
-	}
-
-	return LayerGeoJSON{Type: "FeatureCollection", Features: features}, nil
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	return GetLayerDataByType(ctx, appDB, defaultDataCity, layerType, year)
 }
 
 func GetVerifiedLayer() fiber.Handler {
 	return func(c *fiber.Ctx) error {
+		// Parse and validate query parameters
 		city := strings.TrimSpace(c.Params("city"))
 		if city == "" {
 			city = defaultDataCity
@@ -225,62 +189,84 @@ func GetVerifiedLayer() fiber.Handler {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "query parameter 'year' must be a valid 4-digit year"})
 		}
 
-		layerData, err := getLayerDataByCity(city, layerType, year)
-		if err != nil {
-			log.Printf("get layer data failed: %v", err)
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch layer data"})
-		}
-
-		verification := VerificationMetadata{
-			IsVerified:    false,
-			OnChainHash:   "",
-			StatusMessage: "Verification Skipped",
-		}
-
-		if len(layerData.Features) == 0 {
-			verification.StatusMessage = "Record Not Found"
-			return c.JSON(VerifiedLayerResponse{Data: layerData, Verification: verification})
-		}
-
 		yearU16, err := parseYearToUint16(year)
 		if err != nil {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "query parameter 'year' must be between 0 and 65535"})
 		}
 
-		payload, err := json.Marshal(layerData)
-		if err != nil {
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to encode layer payload"})
-		}
-
-		hash := GenerateSHA256Hash(payload)
-
 		ctx, cancel := context.WithTimeout(c.UserContext(), 20*time.Second)
 		defer cancel()
 
-		svc, err := newBlockchainServiceFn(ctx)
+		// Fetch layer data using the new database helper
+		layerData, err := GetLayerDataByType(ctx, appDB, city, layerType, year)
 		if err != nil {
-			verification.StatusMessage = "Chain Unavailable"
-			return c.JSON(VerifiedLayerResponse{Data: layerData, Verification: verification})
-		}
-		defer svc.Close()
-
-		result, err := verifyHashOnChainFn(svc, ctx, layerType, yearU16, payload)
-		if err != nil {
-			verification.StatusMessage = "Verification Failed"
-			return c.JSON(VerifiedLayerResponse{Data: layerData, Verification: verification})
+			log.Printf("get layer data failed: %v", err)
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch layer data"})
 		}
 
-		verification.OnChainHash = result.OnChainHash
-		if strings.TrimSpace(result.OnChainHash) == "" {
-			verification.IsVerified = false
+		// Initialize default verification metadata
+		verification := VerificationMetadata{
+			IsVerified:    false,
+			OnChainHash:   "",
+			StatusMessage: "Verification Pending",
+		}
+
+		// Handle case where no features are found
+		if len(layerData.Features) == 0 {
 			verification.StatusMessage = "Record Not Found"
 			return c.JSON(VerifiedLayerResponse{Data: layerData, Verification: verification})
 		}
 
-		verification.IsVerified = result.Match && strings.EqualFold(result.OnChainHash, hash)
-		verification.StatusMessage = "Tamper Detected"
-		if verification.IsVerified {
-			verification.StatusMessage = "Match Found"
+		// Marshal to compute hash
+		payload, err := json.Marshal(layerData)
+		if err != nil {
+			log.Printf("marshal layer data failed: %v", err)
+			verification.StatusMessage = "Serialization Error"
+			return c.JSON(VerifiedLayerResponse{Data: layerData, Verification: verification})
+		}
+
+		expectedHash := GenerateSHA256Hash(payload)
+
+		// Attempt blockchain verification (gracefully handle unavailability)
+		svc, err := newBlockchainServiceFn(ctx)
+		if err != nil {
+			if !isBlockchainUnavailableError(err) {
+				log.Printf("blockchain service init failed: %v", err)
+			}
+			verification.StatusMessage = "Chain Unavailable"
+			verification.OnChainHash = fmt.Sprintf("(%s)", blockchainUnavailableMessage(err))
+			return c.JSON(VerifiedLayerResponse{Data: layerData, Verification: verification})
+		}
+		defer svc.Close()
+
+		// Verify hash on chain
+		result, err := verifyHashOnChainFn(svc, ctx, layerType, yearU16, payload)
+		if err != nil {
+			log.Printf("blockchain verification failed: %v", err)
+			// Check if this is a "Record Not Found" error from the blockchain
+			if strings.Contains(err.Error(), "No cryptographic record found") {
+				verification.StatusMessage = "Record Not Found"
+				verification.OnChainHash = "(not notarized)"
+				return c.JSON(VerifiedLayerResponse{Data: layerData, Verification: verification})
+			}
+			verification.StatusMessage = "Verification Error"
+			verification.OnChainHash = "(verification failed)"
+			return c.JSON(VerifiedLayerResponse{Data: layerData, Verification: verification})
+		}
+
+		// Process verification result
+		verification.OnChainHash = result.OnChainHash
+		if strings.TrimSpace(result.OnChainHash) == "" {
+			verification.IsVerified = false
+			verification.StatusMessage = "Record Not Found"
+		} else {
+			// Check if hashes match
+			verification.IsVerified = result.Match && strings.EqualFold(result.OnChainHash, expectedHash)
+			if verification.IsVerified {
+				verification.StatusMessage = "Cryptographically Secured"
+			} else {
+				verification.StatusMessage = "Tamper Detected"
+			}
 		}
 
 		return c.JSON(VerifiedLayerResponse{Data: layerData, Verification: verification})
@@ -289,6 +275,7 @@ func GetVerifiedLayer() fiber.Handler {
 
 func NotarizeLayer() fiber.Handler {
 	return func(c *fiber.Ctx) error {
+		// Parse and validate request body
 		var req commitLedgerRequest
 		if err := c.BodyParser(&req); err != nil {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid JSON body"})
@@ -299,8 +286,7 @@ func NotarizeLayer() fiber.Handler {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "layer_type is required"})
 		}
 
-		year := req.Year
-		yearU16, err := parseYearToUint16(year)
+		yearU16, err := parseYearToUint16(req.Year)
 		if err != nil {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "year must be between 0 and 65535"})
 		}
@@ -310,42 +296,59 @@ func NotarizeLayer() fiber.Handler {
 			city = defaultDataCity
 		}
 
-		layerData, err := getLayerDataByCity(city, layerType, year)
+		ctx, cancel := context.WithTimeout(c.UserContext(), 20*time.Second)
+		defer cancel()
+
+		// Fetch layer data using the new database helper
+		layerData, err := GetLayerDataByType(ctx, appDB, city, layerType, req.Year)
 		if err != nil {
 			log.Printf("notarize get layer data failed: %v", err)
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch layer data"})
 		}
+
 		if len(layerData.Features) == 0 {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "no artifacts found for requested city/layer/year"})
 		}
 
+		// Marshal to compute hash
 		payload, err := json.Marshal(layerData)
 		if err != nil {
+			log.Printf("notarize marshal failed: %v", err)
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to encode layer payload"})
 		}
-		hash := GenerateSHA256Hash(payload)
 
-		ctx, cancel := context.WithTimeout(c.UserContext(), 20*time.Second)
-		defer cancel()
+		sha256Hash := GenerateSHA256Hash(payload)
 
+		// Initialize blockchain service and commit hash
 		svc, err := newBlockchainServiceFn(ctx)
 		if err != nil {
-			return c.Status(fiber.StatusBadGateway).JSON(fiber.Map{"error": "failed to initialize blockchain service"})
+			if !isBlockchainUnavailableError(err) {
+				log.Printf("notarize blockchain service init failed: %v", err)
+			}
+			return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"error": blockchainUnavailableMessage(err)})
 		}
 		defer svc.Close()
 
-		txHash, err := commitHashToLedgerFn(svc, ctx, layerType, yearU16, hash)
+		txHash, err := commitHashToLedgerFn(svc, ctx, layerType, yearU16, sha256Hash, "legacy-no-cid")
 		if err != nil {
-			return c.Status(fiber.StatusBadGateway).JSON(fiber.Map{"error": "failed to commit hash to ledger", "details": err.Error()})
+			log.Printf("notarize commit failed: %v", err)
+			return c.Status(fiber.StatusBadGateway).JSON(fiber.Map{
+				"error":   "failed to commit hash to ledger",
+				"details": err.Error(),
+			})
 		}
+
+		log.Printf("successfully notarized: city=%s layer_type=%s year=%d hash=%s tx=%s",
+			city, layerType, req.Year, sha256Hash, txHash.Hex())
 
 		return c.Status(fiber.StatusCreated).JSON(fiber.Map{
 			"status":      "committed",
 			"city":        city,
 			"layer_type":  layerType,
 			"year":        yearU16,
-			"sha256_hash": hash,
+			"sha256_hash": sha256Hash,
 			"tx_hash":     txHash.Hex(),
+			"message":     "Layer successfully notarized on blockchain",
 		})
 	}
 }
@@ -374,6 +377,29 @@ func getEnv(key, fallback string) string {
 	return fallback
 }
 
+// loadDeployedContractAddress reads the contract address from the Hardhat deployment JSON file.
+// It looks for the file at ../../contracts/deployed-address.json (relative to the API binary location).
+func loadDeployedContractAddress() string {
+	// Try relative path from current working directory
+	deploymentPath := filepath.Join("..", "..", "contracts", "deployed-address.json")
+
+	data, err := os.ReadFile(deploymentPath)
+	if err != nil {
+		// File not found or unreadable; no contract address auto-loaded
+		return ""
+	}
+
+	var deployment struct {
+		Address string `json:"address"`
+	}
+	if err := json.Unmarshal(data, &deployment); err != nil {
+		log.Printf("⚠️ Failed to parse deployment address file: %v", err)
+		return ""
+	}
+
+	return strings.TrimSpace(deployment.Address)
+}
+
 func handleCommitLedger(db *sql.DB) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		var req commitLedgerRequest
@@ -399,13 +425,13 @@ func handleCommitLedger(db *sql.DB) fiber.Handler {
 
 		city := strings.TrimSpace(req.City)
 		if city == "" {
-			city = "Mumbai"
+			city = defaultDataCity
 		}
 
 		ctx, cancel := context.WithTimeout(c.UserContext(), 20*time.Second)
 		defer cancel()
 
-		hash, payload, err := buildLayerGeoJSONHashFn(ctx, db, city, layerType, year)
+		hash, payload, err := GetLayerDataHashAndPayload(ctx, db, city, layerType, req.Year)
 		if err != nil {
 			log.Printf("ledger commit hash build failed: %v", err)
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
@@ -421,14 +447,16 @@ func handleCommitLedger(db *sql.DB) fiber.Handler {
 
 		svc, err := newBlockchainServiceFn(ctx)
 		if err != nil {
-			log.Printf("ledger commit service init failed: %v", err)
-			return c.Status(fiber.StatusBadGateway).JSON(fiber.Map{
-				"error": "failed to initialize blockchain service",
+			if !isBlockchainUnavailableError(err) {
+				log.Printf("ledger commit service init failed: %v", err)
+			}
+			return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+				"error": blockchainUnavailableMessage(err),
 			})
 		}
 		defer svc.Close()
 
-		txHash, err := commitHashToLedgerFn(svc, ctx, layerType, year, hash)
+		txHash, err := commitHashToLedgerFn(svc, ctx, layerType, year, hash, "legacy-no-cid")
 		if err != nil {
 			log.Printf("ledger commit failed: %v", err)
 			return c.Status(fiber.StatusBadGateway).JSON(fiber.Map{
@@ -443,6 +471,82 @@ func handleCommitLedger(db *sql.DB) fiber.Handler {
 			"layer_type":  layerType,
 			"year":        year,
 			"sha256_hash": hash,
+			"tx_hash":     txHash.Hex(),
+		})
+	}
+}
+
+func SealDecentralizedLayer() fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		var req commitLedgerRequest
+		if err := c.BodyParser(&req); err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid JSON body"})
+		}
+
+		layerType := strings.TrimSpace(req.LayerType)
+		if layerType == "" {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "layer_type is required"})
+		}
+
+		yearU16, err := parseYearToUint16(req.Year)
+		if err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "year must be between 0 and 65535"})
+		}
+
+		city := strings.TrimSpace(req.City)
+		if city == "" {
+			city = defaultDataCity
+		}
+
+		ctx, cancel := context.WithTimeout(c.UserContext(), 60*time.Second)
+		defer cancel()
+
+		layerData, err := GetLayerDataByType(ctx, appDB, city, layerType, req.Year)
+		if err != nil {
+			log.Printf("seal-decentralized get layer data failed: %v", err)
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch layer data"})
+		}
+		if len(layerData.Features) == 0 {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "no artifacts found for requested city/layer/year"})
+		}
+
+		payload, err := json.Marshal(layerData)
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to encode layer payload"})
+		}
+
+		sha256Hash := GenerateSHA256Hash(payload)
+
+		ipfsCID, err := services.UploadToIPFS(payload)
+		if err != nil {
+			log.Printf("seal-decentralized pinata upload failed: %v", err)
+			return c.Status(fiber.StatusBadGateway).JSON(fiber.Map{
+				"error":   "failed to upload payload to IPFS",
+				"details": err.Error(),
+			})
+		}
+
+		svc, err := newBlockchainServiceFn(ctx)
+		if err != nil {
+			return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"error": blockchainUnavailableMessage(err)})
+		}
+		defer svc.Close()
+
+		txHash, err := commitHashToLedgerFn(svc, ctx, layerType, yearU16, sha256Hash, ipfsCID)
+		if err != nil {
+			return c.Status(fiber.StatusBadGateway).JSON(fiber.Map{
+				"error":   "failed to commit hash and CID to ledger",
+				"details": err.Error(),
+			})
+		}
+
+		return c.Status(fiber.StatusCreated).JSON(fiber.Map{
+			"status":      "sealed_decentralized",
+			"city":        city,
+			"layer_type":  layerType,
+			"year":        yearU16,
+			"sha256_hash": sha256Hash,
+			"ipfs_cid":    ipfsCID,
 			"tx_hash":     txHash.Hex(),
 		})
 	}
@@ -497,7 +601,8 @@ func handleLedgerStatus() fiber.Handler {
 		if err != nil {
 			return c.JSON(fiber.Map{
 				"connected": false,
-				"error":     err.Error(),
+				"disabled":  errors.Is(err, ErrBlockchainDisabled),
+				"error":     blockchainUnavailableMessage(err),
 			})
 		}
 		defer svc.Close()
@@ -548,13 +653,13 @@ func handleVerifyLedger(db *sql.DB) fiber.Handler {
 
 		city := strings.TrimSpace(c.Query("city"))
 		if city == "" {
-			city = "Mumbai"
+			city = defaultDataCity
 		}
 
 		ctx, cancel := context.WithTimeout(c.UserContext(), 20*time.Second)
 		defer cancel()
 
-		hash, payload, err := buildLayerGeoJSONHashFn(ctx, db, city, layerType, year)
+		hash, payload, err := GetLayerDataHashAndPayload(ctx, db, city, layerType, yearInt)
 		if err != nil {
 			log.Printf("ledger verify hash build failed: %v", err)
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
@@ -570,9 +675,11 @@ func handleVerifyLedger(db *sql.DB) fiber.Handler {
 
 		svc, err := newBlockchainServiceFn(ctx)
 		if err != nil {
-			log.Printf("ledger verify service init failed: %v", err)
-			return c.Status(fiber.StatusBadGateway).JSON(fiber.Map{
-				"error": "failed to initialize blockchain service",
+			if !isBlockchainUnavailableError(err) {
+				log.Printf("ledger verify service init failed: %v", err)
+			}
+			return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+				"error": blockchainUnavailableMessage(err),
 			})
 		}
 		defer svc.Close()
@@ -592,6 +699,7 @@ func handleVerifyLedger(db *sql.DB) fiber.Handler {
 			"year":                    result.Year,
 			"expected_hash":           hash,
 			"on_chain_hash":           result.OnChainHash,
+			"on_chain_ipfs_cid":       result.OnChainIPFSCID,
 			"on_chain_source":         result.OnChainSource,
 			"on_chain_timestamp_unix": result.OnChainUnixTime,
 			"match":                   result.Match,
