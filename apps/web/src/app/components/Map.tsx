@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-import MapGL, { Layer, Source } from 'react-map-gl/maplibre';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import MapGL, { Layer, Source, MapRef } from 'react-map-gl/maplibre';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import IntegrityBadge from './IntegrityBadge';
 import OtpModal from './OtpModal';
@@ -73,12 +73,14 @@ function formatLayerName(layerType: string): string {
 
 export default function UrbanMap() {
   const { session } = useSession();
+  const mapRef = useRef<MapRef | null>(null);
   const [year, setYear] = useState(2012);
   const [geoData, setGeoData] = useState<LayersApiResponse | null>(null);
   const [verification, setVerification] = useState<VerificationPayload | null>(null);
   const [hoverInfo, setHoverInfo] = useState<HoverInfo | null>(null);
   const [selectedFeature, setSelectedFeature] = useState<GeoJSON.Feature | null>(null);
   const [trustLayerType, setTrustLayerType] = useState<TrustLayerChoice>('slum_boundary');
+  const [is3DMode, setIs3DMode] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [ledgerStatus, setLedgerStatus] = useState<LedgerStatusResponse | null>(null);
   const [refreshTick, setRefreshTick] = useState(0);
@@ -239,6 +241,26 @@ export default function UrbanMap() {
   const chainUnavailable = ledgerStatus?.connected === false;
   const isAdmin = session.mode === 'admin' && Boolean(session.admin?.token);
   const canSeal = Boolean(isAdmin && session.admin?.token && session.admin?.role !== 'pending');
+  const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN;
+  const hasMapboxToken = Boolean(mapboxToken);
+  const useMapboxStyle = is3DMode && hasMapboxToken;
+  const mapStyle = useMapboxStyle
+    ? `https://api.mapbox.com/styles/v1/mapbox/dark-v11?access_token=${mapboxToken}`
+    : 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json';
+
+  useEffect(() => {
+    const map = mapRef.current?.getMap?.();
+    if (!map) {
+      return;
+    }
+
+    map.flyTo({
+      pitch: is3DMode ? 60 : 0,
+      bearing: is3DMode ? -20 : 0,
+      duration: 1800,
+      essential: true,
+    });
+  }, [is3DMode]);
 
   const handleOpenOtpModal = () => {
     if (!isAdmin) {
@@ -265,8 +287,9 @@ export default function UrbanMap() {
 
       <div className="absolute inset-0">
         <MapGL
+          ref={mapRef}
           initialViewState={{ longitude: 72.8777, latitude: 19.076, zoom: 10.5 }}
-          mapStyle="https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json"
+          mapStyle={mapStyle}
           interactiveLayerIds={['urban-layers', 'road-network-lines']}
           onClick={(event) => {
             if (event.features && event.features.length > 0) {
@@ -282,6 +305,28 @@ export default function UrbanMap() {
           }}
           onMouseLeave={() => setHoverInfo(null)}
         >
+          {useMapboxStyle && (
+            <Layer
+              id="3d-buildings"
+              source="composite"
+              source-layer="building"
+              type="fill-extrusion"
+              minzoom={14}
+              beforeId="road-network-lines"
+              paint={{
+                'fill-extrusion-height': ['interpolate', ['linear'], ['zoom'], 15, 0, 15.05, ['get', 'height']],
+                'fill-extrusion-base': ['coalesce', ['get', 'min_height'], 0],
+                'fill-extrusion-opacity': is3DMode ? 0.82 : 0,
+                'fill-extrusion-color': [
+                  'case',
+                  ['==', ['get', 'class'], 'verified'], '#0f766e',
+                  ['==', ['get', 'class'], 'commercial'], '#27272a',
+                  '#1f2937',
+                ],
+              }}
+            />
+          )}
+
           <Source type="geojson" data={filteredData}>
             <Layer
               id="urban-layers"
@@ -369,6 +414,34 @@ export default function UrbanMap() {
         </div>
 
         <div className="mt-4 space-y-4">
+          <button
+            type="button"
+            onClick={() => setIs3DMode((current) => !current)}
+            className={`flex w-full items-center justify-between gap-4 rounded-2xl border px-4 py-3 text-left transition ${
+              is3DMode
+                ? 'border-cyan-400/40 bg-cyan-400/10 text-cyan-100 shadow-[0_0_0_1px_rgba(34,211,238,0.12)]'
+                : 'border-white/10 bg-white/5 text-slate-200 hover:border-white/20 hover:bg-white/10'
+            }`}
+          >
+            <span className="flex flex-col">
+              <span className="text-xs uppercase tracking-[0.25em] text-slate-500">3D Cityscape</span>
+              <span className="mt-1 text-sm font-semibold">Enable 3D Topography</span>
+            </span>
+            <span className={`relative h-6 w-11 rounded-full border transition ${is3DMode ? 'border-cyan-400/60 bg-cyan-400/25' : 'border-white/15 bg-slate-800'}`}>
+              <span
+                className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-[0_8px_20px_rgba(0,0,0,0.35)] transition-transform ${
+                  is3DMode ? 'translate-x-5 bg-cyan-100' : 'translate-x-0.5'
+                }`}
+              />
+            </span>
+          </button>
+
+          {!hasMapboxToken && is3DMode && (
+            <p className="rounded-2xl border border-amber-400/20 bg-amber-400/10 px-4 py-3 text-xs text-amber-100">
+              Add <span className="font-semibold">NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN</span> to enable the extruded building layer. Camera tilt still works on the current basemap.
+            </p>
+          )}
+
           <label className="flex items-center justify-between gap-4 text-sm text-slate-300">
             <span className="min-w-0">Verify Layer</span>
             <select

@@ -10,11 +10,13 @@ out/
 # Build outputs
 apps/api/api
 apps/api/api.exe
+apps/api/urban-api
 
 # Go
 *.test
 *.out
 /apps/api/.gocache/
+/apps/api/*.log
 
 # Environment variables
 .env

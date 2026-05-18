@@ -2,6 +2,26 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 
 ## Getting Started
 
+### Environment Configuration
+
+To enable 3D map features (building extrusions and advanced layers), configure your Mapbox API token:
+
+1. Copy `.env.example` to `.env.local`:
+	```bash
+	cp .env.example .env.local
+	```
+
+2. Get your Mapbox access token from [account.mapbox.com/tokens](https://account.mapbox.com/tokens/)
+
+3. Add your token to `.env.local`:
+	```
+	NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN=pk.your_token_here
+	```
+
+Without a token, the map works with the default CartoDB dark basemap but 3D building layers won't load. The camera tilt toggle still functions normally.
+
+### Running the Development Server
+
 First, run the development server:
 
 ```bash
