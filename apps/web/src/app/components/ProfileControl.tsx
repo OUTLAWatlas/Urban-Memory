@@ -289,7 +289,8 @@ export default function ProfileControl({ inline = false }: { inline?: boolean } 
     setGovernanceNotice('');
 
     try {
-      const response = await fetch('/api/admin/approve-user', {
+      const baseUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000').replace(/\/$/, '');
+      const response = await fetch(`${baseUrl}/api/v1/admin/approve-user`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

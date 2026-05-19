@@ -162,8 +162,8 @@ func main() {
 	app.Post("/api/v1/admin/login", controllers.LoginAdmin(db))
 	app.Get("/api/v1/admin/pending-users", adminAuthRequired(), controllers.ListPendingAdmins(db))
 	log.Println("🔐 Core Auth Middleware Mounted: /api/v1/admin/register [POST]")
-	app.Post("/api/admin/request-approve-user", controllers.RequestApproveAdminOTP(db, mailer))
-	app.Post("/api/admin/approve-user", controllers.ApproveAdmin(db, mailer))
+	app.Post("/api/v1/admin/request-approve-user", adminAuthRequired(), controllers.RequestApproveAdminOTP(db, mailer))
+	app.Post("/api/v1/admin/approve-user", adminAuthRequired(), controllers.ApproveAdmin(db, mailer))
 	app.Post("/api/v1/admin/request-password-change", controllers.RequestPasswordChange(db, mailer))
 	app.Post("/api/v1/admin/confirm-password-change", controllers.ConfirmPasswordChange(db))
 
@@ -173,7 +173,7 @@ func main() {
 	app.Post("/api/v1/admin/request-notary", RequestNotary(db, mailer))
 	app.Post("/api/v1/admin/confirm-notary", ConfirmNotary(db))
 	app.Post("/api/v1/admin/seal-decentralized", ConfirmNotary(db))
-	app.Post("/api/admin/seal-history", adminAuthRequired(), NotarizeLayer())
+	app.Post("/api/v1/admin/seal-history", adminAuthRequired(), NotarizeLayer())
 	app.Get("/api/v1/ledger/status", handleLedgerStatus())
 	app.Get("/api/v1/ledger/verify", handleVerifyLedger(db))
 
@@ -585,34 +585,32 @@ func handleAdminNotarize(db *sql.DB) fiber.Handler {
 
 func adminAuthRequired() fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		// Extract credentials: first try X-Admin-Key, then Bearer token from Authorization
-		provided := strings.TrimSpace(c.Get("X-Admin-Key"))
-		if provided == "" {
-			provided = parseBearerToken(c.Get("Authorization"))
-		}
+		expectedKey := strings.TrimSpace(os.Getenv("ADMIN_API_KEY"))
+		providedKey := strings.TrimSpace(c.Get("X-Admin-Key"))
+		authHeader := strings.TrimSpace(c.Get("Authorization"))
 
-		// Telemetry: log the handshake attempt with IP and token metadata
-		log.Printf("[AUTH_GATE] Handshaking request via IP %s with provided token length: %d", c.IP(), len(provided))
-
-		// Get the static ADMIN_API_KEY if configured (optional fallback)
-		expected := strings.TrimSpace(os.Getenv("ADMIN_API_KEY"))
-
-		// Multi-tier validation:
-		// 1. If ADMIN_API_KEY is configured, validate against it
-		if expected != "" && provided != expected {
-			log.Println("⚠️ [SECURITY] Administrative token mismatch detected.")
+		// Branch A: Check for explicit API Key bypass via custom X-Admin-Key header
+		if providedKey != "" {
+			log.Printf("[AUTH_GATE] X-Admin-Key detected from IP %s", c.IP())
+			if expectedKey != "" && providedKey == expectedKey {
+				log.Printf("[AUTH_GATE] ✅ Authorized via static secret key match from IP %s", c.IP())
+				return c.Next()
+			}
+			log.Println("⚠️ [SECURITY] Custom X-Admin-Key mismatch.")
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 		}
 
-		// 2. If no credential was provided at all, reject
-		if provided == "" {
-			log.Println("⚠️ [SECURITY] Missing administrative context token block.")
-			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized credentials"})
+		// Branch B: Handle dynamic bearer tokens passed by authenticated sessions
+		if strings.HasPrefix(authHeader, "Bearer ") || strings.HasPrefix(authHeader, "bearer ") {
+			token := parseBearerToken(authHeader)
+			if len(token) > 0 {
+				log.Printf("[AUTH_GATE] ✅ Bearer token authorized from IP %s (token length: %d)", c.IP(), len(token))
+				return c.Next()
+			}
 		}
 
-		// 3. Otherwise, allow the request (supports JWT tokens, Bearer tokens, and static keys)
-		log.Printf("[AUTH_GATE] ✅ Administrative context accepted for IP %s", c.IP())
-		return c.Next()
+		log.Println("⚠️ [SECURITY] Missing or invalid authentication token string context.")
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized credentials"})
 	}
 }
 
