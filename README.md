@@ -42,21 +42,21 @@ Go Fiber framework delivers sub-50ms API responses at scale. PostgreSQL + PostGI
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    UrbanMemory Architecture                       │
+│                    UrbanMemory Architecture                     │
 └─────────────────────────────────────────────────────────────────┘
 
   ┌──────────────────────────────────────────────────────────┐
-  │                   Client Layer (Port 3000)                │
-  │  Next.js App Router | React | Tailwind CSS | Mapbox GL  │
+  │                   Client Layer (Port 3000)               │
+  │  Next.js App Router | React | Tailwind CSS | Mapbox GL   │
   │                Framer Motion | TypeScript                │
   └────────────────────────┬─────────────────────────────────┘
                            │
                     HTTP/REST (JSON)
                            │
   ┌────────────────────────▼─────────────────────────────────┐
-  │              API Layer (Port 4000/8000)                   │
-  │  Go Fiber | RESTful Handlers | Middleware Stack         │
-  │    Auth Controllers | Notarization Pipeline             │
+  │              API Layer (Port 4000/8000)                  │
+  │  Go Fiber | RESTful Handlers | Middleware Stack          │
+  │    Auth Controllers | Notarization Pipeline              │
   └────────────┬─────────────────────┬───────────────────────┘
                │                     │
         SQL Queries         Smart Contract Calls
