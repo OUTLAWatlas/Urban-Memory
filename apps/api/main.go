@@ -17,6 +17,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
+	"github.com/gofiber/fiber/v2/middleware/limiter"
 	"github.com/gofiber/fiber/v2/middleware/logger"
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
@@ -138,6 +139,18 @@ func main() {
 		AllowHeaders:     "Origin, Content-Type, Accept, Authorization, X-Requested-With",
 		AllowMethods:     "GET, POST, PUT, DELETE, OPTIONS",
 		AllowCredentials: true,
+	}))
+	app.Use(limiter.New(limiter.Config{
+		Max:        60,
+		Expiration: time.Minute,
+		KeyGenerator: func(c *fiber.Ctx) string {
+			return c.IP()
+		},
+		LimitReached: func(c *fiber.Ctx) error {
+			return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{
+				"error": "Rate limit exceeded. Please slow down to conserve municipal bandwidth.",
+			})
+		},
 	}))
 	app.Options("/*", func(c *fiber.Ctx) error {
 		return c.SendStatus(fiber.StatusNoContent)
