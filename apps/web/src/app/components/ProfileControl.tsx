@@ -283,7 +283,16 @@ export default function ProfileControl({ inline = false }: { inline?: boolean } 
     }
   };
 
-  const handleApprovePendingUser = async (email: string) => {
+  const handleApprovePendingUser = async (e?: React.MouseEvent | React.FormEvent, email?: string) => {
+    if (e && typeof e.preventDefault === 'function') {
+      e.preventDefault();
+    }
+    
+    if (!email) {
+      setGovernanceError('Invalid approval request: missing email.');
+      return;
+    }
+
     setGovernanceBusy(true);
     setGovernanceError('');
     setGovernanceNotice('');
@@ -524,7 +533,7 @@ export default function ProfileControl({ inline = false }: { inline?: boolean } 
                           <div>
                             <button
                               type="button"
-                              onClick={() => void handleApprovePendingUser(pendingAdmin.email)}
+                              onClick={(e) => void handleApprovePendingUser(e, pendingAdmin.email)}
                               disabled={governanceBusy}
                               className="rounded-full border border-emerald-400/20 bg-emerald-400/10 px-4 py-2 text-xs font-semibold text-emerald-100 transition hover:bg-emerald-400/15 disabled:cursor-not-allowed disabled:opacity-50"
                             >

@@ -136,7 +136,7 @@ func main() {
 	app.Use(logger.New())
 	app.Use(cors.New(cors.Config{
 		AllowOriginsFunc: func(_ string) bool { return true },
-		AllowHeaders:     "Origin, Content-Type, Accept, Authorization, X-Requested-With",
+		AllowHeaders:     "Origin, Content-Type, Accept, Authorization, X-Requested-With, X-Admin-Key, Cache-Control",
 		AllowMethods:     "GET, POST, PUT, DELETE, OPTIONS",
 		AllowCredentials: true,
 	}))
