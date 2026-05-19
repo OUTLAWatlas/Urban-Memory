@@ -241,8 +241,8 @@ export default function UrbanMap() {
   const chainUnavailable = ledgerStatus?.connected === false;
   const isAdmin = session.mode === 'admin' && Boolean(session.admin?.token);
   const canSeal = Boolean(isAdmin && session.admin?.token && session.admin?.role !== 'pending');
-  const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN;
-  const hasMapboxToken = Boolean(mapboxToken);
+  const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN?.trim();
+  const hasMapboxToken = Boolean(mapboxToken) && !mapboxToken.startsWith('your_') && !mapboxToken.includes('example_token');
   const useMapboxStyle = is3DMode && hasMapboxToken;
   const mapStyle = useMapboxStyle
     ? `https://api.mapbox.com/styles/v1/mapbox/dark-v11?access_token=${mapboxToken}`
@@ -327,7 +327,39 @@ export default function UrbanMap() {
             />
           )}
 
-          <Source type="geojson" data={filteredData}>
+          <Source id="urban-data" type="geojson" data={filteredData}>
+            {is3DMode && (
+              <Layer
+                id="urban-topography"
+                type="fill-extrusion"
+                filter={['!=', ['get', 'layer_type'], 'road_network']}
+                paint={{
+                  'fill-extrusion-height': [
+                    'match',
+                    ['get', 'layer_type'],
+                    'forest_cover', 70,
+                    'admin_ward', 120,
+                    'slum_boundary', 180,
+                    'zone_residential', 220,
+                    'zone_industrial', 260,
+                    40,
+                  ],
+                  'fill-extrusion-base': 0,
+                  'fill-extrusion-opacity': 0.52,
+                  'fill-extrusion-color': [
+                    'match',
+                    ['get', 'layer_type'],
+                    'forest_cover', '#14532d',
+                    'admin_ward', '#1d4ed8',
+                    'slum_boundary', '#7f1d1d',
+                    'zone_residential', '#5b21b6',
+                    'zone_industrial', '#854d0e',
+                    '#334155',
+                  ],
+                }}
+              />
+            )}
+
             <Layer
               id="urban-layers"
               type="fill"
@@ -438,7 +470,7 @@ export default function UrbanMap() {
 
           {!hasMapboxToken && is3DMode && (
             <p className="rounded-2xl border border-amber-400/20 bg-amber-400/10 px-4 py-3 text-xs text-amber-100">
-              Add <span className="font-semibold">NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN</span> to enable the extruded building layer. Camera tilt still works on the current basemap.
+              Add a valid <span className="font-semibold">NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN</span> to load Mapbox building extrusions. The civic layers still lift into a stylized 3D topography on the current basemap.
             </p>
           )}
 
