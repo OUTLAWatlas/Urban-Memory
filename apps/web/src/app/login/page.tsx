@@ -30,12 +30,12 @@ export default function LoginPage() {
 
   const submitLabel = mode === 'login' ? 'Sign In' : 'Request Access';
 
-  const baseApiUrl = (process.env.NEXT_PUBLIC_API_URL || '').trim();
-  // Remove any accidental trailing slashes or subpaths from the dashboard setup
-  const pureDomain = baseApiUrl.replace(/\/api\/v1\/?$/, '').replace(/\/$/, '');
-  // Construct the absolute canonical route path matching your Go Fiber routes
-  const targetEndpoint = `${pureDomain}/api/v1/auth/login`;
-  const registerEndpoint = `${pureDomain}/api/v1/auth/register`;
+  const envApiUrl = (process.env.NEXT_PUBLIC_API_URL || '').trim();
+  // Completely clear out trailing slashes or subpaths to avoid double-routing
+  const cleanDomain = envApiUrl.replace(/\/api\/v1\/?$/, '').replace(/\/$/, '');
+  // Explicitly append the canonical route your Go Fiber routing patterns expect
+  const absoluteAuthEndpoint = `${cleanDomain}/api/v1/auth/login`;
+  const registerEndpoint = `${cleanDomain}/api/v1/auth/register`;
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -45,7 +45,7 @@ export default function LoginPage() {
 
     try {
       if (mode === 'login') {
-        const response = await fetch(targetEndpoint, {
+        const response = await fetch(absoluteAuthEndpoint, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

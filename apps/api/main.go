@@ -17,6 +17,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
+	"github.com/gofiber/fiber/v2/middleware/logger"
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
 	"github.com/yourusername/urban-memory/api/controllers"
@@ -131,12 +132,16 @@ func main() {
 	app := fiber.New(fiber.Config{
 		AppName: "UrbanMemory API",
 	})
+	app.Use(logger.New())
 	app.Use(cors.New(cors.Config{
 		AllowOriginsFunc: func(_ string) bool { return true },
 		AllowHeaders:     "Origin, Content-Type, Accept, Authorization, X-Requested-With",
 		AllowMethods:     "GET, POST, PUT, DELETE, OPTIONS",
 		AllowCredentials: true,
 	}))
+	app.Options("/*", func(c *fiber.Ctx) error {
+		return c.SendStatus(fiber.StatusNoContent)
+	})
 	appDB = db
 	defaultDataCity = strings.TrimSpace(getEnv("DEFAULT_CITY", "Mumbai"))
 

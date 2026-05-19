@@ -141,7 +141,7 @@ func TestAdminSealHistorySuccess(t *testing.T) {
 	newBlockchainServiceFn = func(ctx context.Context) (*BlockchainService, error) {
 		return &BlockchainService{}, nil
 	}
-	commitHashToLedgerFn = func(svc *BlockchainService, ctx context.Context, layerType string, year uint16, hash string) (common.Hash, error) {
+	commitHashToLedgerFn = func(svc *BlockchainService, ctx context.Context, layerType string, year uint16, sha256Hash string, ipfsCID string) (common.Hash, error) {
 		return common.HexToHash("0x5678"), nil
 	}
 
