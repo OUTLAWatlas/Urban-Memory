@@ -18,10 +18,6 @@ type RegisterResponse = {
 
 type FormMode = 'login' | 'request-access';
 
-function sendGatewayRequest(path: string, init: RequestInit) {
-  return fetch(`/api${path}`, init);
-}
-
 export default function LoginPage() {
   const router = useRouter();
   const { setAdminSession } = useSession();
@@ -34,6 +30,13 @@ export default function LoginPage() {
 
   const submitLabel = mode === 'login' ? 'Sign In' : 'Request Access';
 
+  const baseApiUrl = (process.env.NEXT_PUBLIC_API_URL || '').trim();
+  // Standardize formatting to avoid double-slashes or missing routes
+  const sanitizedApiUrl = baseApiUrl.endsWith('/api/v1') ? baseApiUrl : `${baseApiUrl}/api/v1`;
+  // Direct target destination URLs
+  const loginEndpoint = `${sanitizedApiUrl}/auth/login`;
+  const registerEndpoint = `${sanitizedApiUrl}/auth/register`;
+
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError('');
@@ -42,7 +45,7 @@ export default function LoginPage() {
 
     try {
       if (mode === 'login') {
-        const response = await sendGatewayRequest('/admin/login', {
+        const response = await fetch(loginEndpoint, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email, password }),
@@ -65,7 +68,7 @@ export default function LoginPage() {
         return;
       }
 
-      const response = await sendGatewayRequest('/admin/register', {
+      const response = await fetch(registerEndpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email }),
