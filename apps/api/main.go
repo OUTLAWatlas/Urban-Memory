@@ -158,10 +158,9 @@ func main() {
 	appDB = db
 	defaultDataCity = strings.TrimSpace(getEnv("DEFAULT_CITY", "Mumbai"))
 
-	app.Post("/api/admin/register", controllers.RegisterAdmin(db))
-	app.Post("/api/admin/login", controllers.LoginAdmin(db))
-	app.Post("/api/v1/auth/login", controllers.LoginAdmin(db))
-	app.Get("/api/admin/pending-users", controllers.ListPendingAdmins(db))
+	app.Post("/api/v1/admin/register", controllers.RegisterAdmin(db))
+	app.Post("/api/v1/admin/login", controllers.LoginAdmin(db))
+	app.Get("/api/v1/admin/pending-users", adminAuthRequired(), controllers.ListPendingAdmins(db))
 	app.Post("/api/admin/request-approve-user", controllers.RequestApproveAdminOTP(db, mailer))
 	app.Post("/api/admin/approve-user", controllers.ApproveAdmin(db, mailer))
 	app.Post("/api/v1/admin/request-password-change", controllers.RequestPasswordChange(db, mailer))

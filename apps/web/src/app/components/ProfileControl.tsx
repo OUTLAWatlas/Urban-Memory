@@ -103,9 +103,13 @@ export default function ProfileControl({ inline = false }: { inline?: boolean } 
       setGovernanceError('');
 
       try {
-        const response = await fetch('/api/admin/pending-users', {
+        console.log('[ADMIN_QUEUE] 📡 Fetching pending administrative applications...');
+
+        const baseUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000').replace(/\/$/, '');
+        const response = await fetch(`${baseUrl}/api/v1/admin/pending-users`, {
           headers: {
             Authorization: `Bearer ${admin?.token ?? ''}`,
+            'X-Admin-Key': process.env.NEXT_PUBLIC_ADMIN_API_KEY ?? '',
           },
         });
         const payload = (await response.json().catch(() => ({}))) as PendingAdminsResponse;
@@ -117,6 +121,7 @@ export default function ProfileControl({ inline = false }: { inline?: boolean } 
 
         setPendingAdmins(payload.pending_admins ?? []);
       } catch (error) {
+        console.error('[ADMIN_QUEUE] 🔴 Failed to fetch registrations:', error);
         setGovernanceError(String(error));
       } finally {
         setPendingBusy(false);
@@ -152,9 +157,13 @@ export default function ProfileControl({ inline = false }: { inline?: boolean } 
 
     setPendingBusy(true);
     try {
-      const response = await fetch('/api/admin/pending-users', {
+      console.log('[ADMIN_QUEUE] 📡 Fetching pending administrative applications...');
+
+      const baseUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000').replace(/\/$/, '');
+      const response = await fetch(`${baseUrl}/api/v1/admin/pending-users`, {
         headers: {
-          Authorization: `Bearer ${admin.token}`,
+          Authorization: `Bearer ${admin?.token ?? ''}`,
+          'X-Admin-Key': process.env.NEXT_PUBLIC_ADMIN_API_KEY ?? '',
         },
       });
       const payload = (await response.json().catch(() => ({}))) as PendingAdminsResponse;
@@ -164,6 +173,7 @@ export default function ProfileControl({ inline = false }: { inline?: boolean } 
       }
       setPendingAdmins(payload.pending_admins ?? []);
     } catch (error) {
+      console.error('[ADMIN_QUEUE] 🔴 Failed to fetch registrations:', error);
       setGovernanceError(String(error));
     } finally {
       setPendingBusy(false);
