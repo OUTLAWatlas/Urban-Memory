@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const baseApiUrl = (process.env.NEXT_PUBLIC_API_URL || '').trim();
-// Safeguard to append /api/v1 if not explicitly written in the env dashboard
-const API_URL = baseApiUrl.endsWith('/api/v1') ? baseApiUrl : `${baseApiUrl}/api/v1`;
+const rawUrl = (process.env.NEXT_PUBLIC_API_URL || '').trim();
+// Remove any existing trailing '/api/v1' from the environment variable if present,
+// because the route path extraction will capture the sub-routes dynamically.
+const BACKEND_BASE = rawUrl.replace(/\/api\/v1\/?$/, '') || 'http://localhost:8000';
 
 type RouteContext = {
   params: Promise<{ path: string[] }> | { path: string[] };
@@ -12,7 +13,7 @@ export const dynamic = 'force-dynamic';
 
 function buildTargetUrl(request: NextRequest, path: string[]) {
   const incomingUrl = new URL(request.url);
-  const targetUrl = new URL(`${API_URL}/api/${path.join('/')}`);
+  const targetUrl = new URL(`${BACKEND_BASE}/api/${path.join('/')}`);
   targetUrl.search = incomingUrl.search;
   return targetUrl;
 }
@@ -60,7 +61,7 @@ async function proxyRequest(request: NextRequest, context: RouteContext) {
 
     return NextResponse.json(
       {
-        error: `UrbanMemory API is unavailable at ${API_URL}. Start apps/api before using this action.`,
+        error: `UrbanMemory API is unavailable at ${BACKEND_BASE}. Start apps/api before using this action.`,
       },
       { status: 503 }
     );

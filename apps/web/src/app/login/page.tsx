@@ -18,6 +18,10 @@ type RegisterResponse = {
 
 type FormMode = 'login' | 'request-access';
 
+function sendGatewayRequest(path: string, init: RequestInit) {
+  return fetch(`/api${path}`, init);
+}
+
 export default function LoginPage() {
   const router = useRouter();
   const { setAdminSession } = useSession();
@@ -38,7 +42,7 @@ export default function LoginPage() {
 
     try {
       if (mode === 'login') {
-        const response = await fetch('/api/admin/login', {
+        const response = await sendGatewayRequest('/admin/login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email, password }),
@@ -61,7 +65,7 @@ export default function LoginPage() {
         return;
       }
 
-      const response = await fetch('/api/admin/register', {
+      const response = await sendGatewayRequest('/admin/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email }),
