@@ -243,7 +243,7 @@ export default function UrbanMap({
       roads: 0,
     };
 
-    filteredData.features.forEach((feature) => {
+    filteredData.features.forEach((feature: GeoJSON.Feature) => {
       const layerType = getLayerType(feature);
       if (layerType === 'slum_boundary') totals.slums += 1;
       if (layerType === 'admin_ward') totals.wards += 1;
