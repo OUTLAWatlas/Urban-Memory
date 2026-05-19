@@ -95,13 +95,13 @@ export default function LoginPage() {
   };
 
   return (
-    <main className="relative min-h-screen overflow-hidden bg-[#050816] text-white">
+    <main className="relative min-h-screen overflow-y-auto bg-[#050816] text-white">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.14),transparent_30%),radial-gradient(circle_at_bottom_right,rgba(16,185,129,0.16),transparent_30%),linear-gradient(180deg,#050816_0%,#040711_100%)]" />
       <div className="absolute left-[-10%] top-[-8%] h-72 w-72 rounded-full bg-cyan-400/20 blur-3xl" />
       <div className="absolute bottom-[-10%] right-[-6%] h-80 w-80 rounded-full bg-emerald-400/12 blur-3xl" />
 
-      <section className="relative mx-auto flex min-h-screen w-full max-w-6xl items-center px-6 py-10 lg:px-10">
-        <div className="grid w-full gap-6 lg:grid-cols-[0.9fr_1.1fr] lg:gap-8">
+      <section className="relative mx-auto flex min-h-screen w-full max-w-6xl items-center px-6 py-8 lg:px-10 sm:py-10">
+        <div className="my-auto grid w-full gap-6 lg:grid-cols-[0.9fr_1.1fr] lg:gap-8">
           <div className="rounded-[2rem] border border-white/10 bg-white/5 p-8 shadow-[0_30px_120px_rgba(0,0,0,0.45)] backdrop-blur-2xl lg:p-10">
             <p className="text-xs uppercase tracking-[0.45em] text-cyan-300/80">Administrative Gateway</p>
             <h1 className="mt-5 text-3xl font-semibold leading-tight sm:text-4xl">
