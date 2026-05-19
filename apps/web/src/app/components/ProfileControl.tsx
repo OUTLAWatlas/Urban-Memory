@@ -106,11 +106,16 @@ export default function ProfileControl({ inline = false }: { inline?: boolean } 
         console.log('[ADMIN_QUEUE] 📡 Fetching pending administrative applications...');
 
         const baseUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000').replace(/\/$/, '');
+        const headers: HeadersInit = {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${admin?.token ?? ''}`,
+        };
+        if (process.env.NEXT_PUBLIC_ADMIN_API_KEY) {
+          headers['X-Admin-Key'] = process.env.NEXT_PUBLIC_ADMIN_API_KEY;
+        }
+
         const response = await fetch(`${baseUrl}/api/v1/admin/pending-users`, {
-          headers: {
-            Authorization: `Bearer ${admin?.token ?? ''}`,
-            'X-Admin-Key': process.env.NEXT_PUBLIC_ADMIN_API_KEY ?? '',
-          },
+          headers,
         });
         const payload = (await response.json().catch(() => ({}))) as PendingAdminsResponse;
 
@@ -119,7 +124,15 @@ export default function ProfileControl({ inline = false }: { inline?: boolean } 
           return;
         }
 
-        setPendingAdmins(payload.pending_admins ?? []);
+        // Safe array handling with fallback guards
+        if (Array.isArray(payload.pending_admins)) {
+          setPendingAdmins(payload.pending_admins);
+        } else if (payload.pending_admins && typeof payload.pending_admins === 'object') {
+          console.error('[ADMIN_QUEUE] API returned non-array pending_admins:', payload.pending_admins);
+          setPendingAdmins([]);
+        } else {
+          setPendingAdmins([]);
+        }
       } catch (error) {
         console.error('[ADMIN_QUEUE] 🔴 Failed to fetch registrations:', error);
         setGovernanceError(String(error));
@@ -160,18 +173,32 @@ export default function ProfileControl({ inline = false }: { inline?: boolean } 
       console.log('[ADMIN_QUEUE] 📡 Fetching pending administrative applications...');
 
       const baseUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000').replace(/\/$/, '');
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${admin?.token ?? ''}`,
+      };
+      if (process.env.NEXT_PUBLIC_ADMIN_API_KEY) {
+        headers['X-Admin-Key'] = process.env.NEXT_PUBLIC_ADMIN_API_KEY;
+      }
+
       const response = await fetch(`${baseUrl}/api/v1/admin/pending-users`, {
-        headers: {
-          Authorization: `Bearer ${admin?.token ?? ''}`,
-          'X-Admin-Key': process.env.NEXT_PUBLIC_ADMIN_API_KEY ?? '',
-        },
+        headers,
       });
       const payload = (await response.json().catch(() => ({}))) as PendingAdminsResponse;
       if (!response.ok) {
         setGovernanceError(String(payload.error ?? 'Unable to load pending admins.'));
         return;
       }
-      setPendingAdmins(payload.pending_admins ?? []);
+
+      // Safe array handling with fallback guards
+      if (Array.isArray(payload.pending_admins)) {
+        setPendingAdmins(payload.pending_admins);
+      } else if (payload.pending_admins && typeof payload.pending_admins === 'object') {
+        console.error('[ADMIN_QUEUE] API returned non-array pending_admins:', payload.pending_admins);
+        setPendingAdmins([]);
+      } else {
+        setPendingAdmins([]);
+      }
     } catch (error) {
       console.error('[ADMIN_QUEUE] 🔴 Failed to fetch registrations:', error);
       setGovernanceError(String(error));

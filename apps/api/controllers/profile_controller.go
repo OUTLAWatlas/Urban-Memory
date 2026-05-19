@@ -178,6 +178,11 @@ func ListPendingAdmins(db *sql.DB) fiber.Handler {
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to iterate pending admins", "details": err.Error()})
 		}
 
+		// Ensure we always return a valid array, never null
+		if len(pendingAdmins) == 0 {
+			pendingAdmins = make([]PendingAdminSummary, 0) // Explicitly empty array
+		}
+
 		return c.JSON(fiber.Map{
 			"pending_admins": pendingAdmins,
 		})
