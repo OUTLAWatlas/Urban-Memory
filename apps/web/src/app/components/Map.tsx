@@ -550,7 +550,7 @@ export default function UrbanMap({
           <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
             <div className="flex items-center justify-between gap-3">
               <IntegrityBadge verification={verification ?? undefined} />
-              <span className="text-xs text-slate-400">{verification?.status_message || (isLoading ? 'Verifying...' : 'Status unknown')}</span>
+              <span className="text-xs text-slate-400">{verification?.status_message || (isMapLoading ? 'Verifying...' : 'Status unknown')}</span>
             </div>
             {verification?.on_chain_hash && (
               <p className="mt-3 break-all text-xs text-slate-400">Hash: {verification.on_chain_hash}</p>
