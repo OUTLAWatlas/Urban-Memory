@@ -30,12 +30,9 @@ export default function LoginPage() {
 
   const submitLabel = mode === 'login' ? 'Sign In' : 'Request Access';
 
-  const envApiUrl = (process.env.NEXT_PUBLIC_API_URL || '').trim();
-  // Completely clear out trailing slashes or subpaths to avoid double-routing
-  const cleanDomain = envApiUrl.replace(/\/api\/v1\/?$/, '').replace(/\/$/, '');
-  // Explicitly append the canonical route your Go Fiber routing patterns expect
-  const absoluteAuthEndpoint = `${cleanDomain}/api/v1/auth/login`;
-  const registerEndpoint = `${cleanDomain}/api/v1/auth/register`;
+  const baseUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000').replace(/\/$/, '');
+  const absoluteAuthEndpoint = `${baseUrl}/api/v1/admin/login`;
+  const registerEndpoint = `${baseUrl}/api/v1/admin/register`;
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -71,9 +68,11 @@ export default function LoginPage() {
         return;
       }
 
+      console.log('[AUTH_PIPELINE] 📡 Dispatched admin registration application for:', email);
+
       const response = await fetch(registerEndpoint, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
         body: JSON.stringify({ email }),
       });
 
@@ -87,8 +86,9 @@ export default function LoginPage() {
       setNotice('Awaiting admin sign-off');
       setPassword('');
       setMode('login');
-    } catch (submissionError) {
-      setError(String(submissionError));
+    } catch (error) {
+      console.error('[AUTH_PIPELINE] 🔴 Registration request rejected:', error);
+      setError(String(error));
     } finally {
       setIsSubmitting(false);
     }
