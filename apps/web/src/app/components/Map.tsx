@@ -435,7 +435,7 @@ export default function UrbanMap() {
         </div>
       )}
 
-      <aside className="absolute top-24 left-4 z-10 w-80 flex flex-col max-h-[calc(100vh-120px)] rounded-[1.75rem] border border-white/10 bg-slate-950/88 text-white shadow-[0_24px_100px_rgba(0,0,0,0.5)] backdrop-blur-2xl">
+      <aside className="absolute top-24 right-4 z-10 w-80 flex flex-col max-h-[calc(100vh-120px)] rounded-[1.75rem] border border-white/10 bg-slate-950/88 text-white shadow-[0_24px_100px_rgba(0,0,0,0.5)] backdrop-blur-2xl">
         <div className="shrink-0 p-5">
           <div className="flex items-start justify-between gap-4 border-b border-white/10 pb-4">
             <div>
