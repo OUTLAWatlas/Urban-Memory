@@ -36,7 +36,7 @@ func GetLayerDataByType(ctx context.Context, db *sql.DB, cityName, layerType str
 			ST_AsGeoJSON(ST_SnapToGrid(geom, 0.000001), 6, 0) AS geojson
 		FROM urban_artifacts
 		WHERE city_name ILIKE $1
-		  AND layer_type = $2
+		  AND ($2 = 'all_layers' OR layer_type = $2)
 		  AND valid_from <= make_date($3, 12, 31)
 		  AND (valid_to IS NULL OR valid_to >= make_date($3, 1, 1))
 		ORDER BY id;
@@ -121,7 +121,7 @@ func GetLayerDataHashAndPayload(ctx context.Context, db *sql.DB, cityName, layer
 		)
 		FROM urban_artifacts
 		WHERE city_name ILIKE $1
-		  AND layer_type = $2
+		  AND ($2 = 'all_layers' OR layer_type = $2)
 		  AND valid_from <= make_date($3, 12, 31)
 		  AND (valid_to IS NULL OR valid_to >= make_date($3, 1, 1));
 	`

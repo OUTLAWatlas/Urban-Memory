@@ -105,7 +105,7 @@ export default function UrbanMap({
   const [verification, setVerification] = useState<VerificationPayload | null>(null);
   const [hoverInfo, setHoverInfo] = useState<HoverInfo | null>(null);
   const [selectedFeature, setSelectedFeature] = useState<GeoJSON.Feature | null>(null);
-  const [trustLayerType, setTrustLayerType] = useState<TrustLayerChoice>('slum_boundary');
+  const [trustLayerType, setTrustLayerType] = useState<TrustLayerChoice>('all_layers');
   const [is3DMode, setIs3DMode] = useState(false);
   const [isMapLoading, setIsMapLoading] = useState(false);
   const [ledgerStatus, setLedgerStatus] = useState<LedgerStatusResponse | null>(null);
@@ -157,16 +157,19 @@ export default function UrbanMap({
     let isActive = true;
     setIsMapLoading(true);
 
-    const apiUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1').trim();
+    const fileYear = VALID_EPOCHS.includes(selectedYear as (typeof VALID_EPOCHS)[number])
+      ? selectedYear
+      : VALID_EPOCHS[0];
+    const baseUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1').replace(/\/$/, '');
 
-    fetch(`${apiUrl}/Mumbai/layers?layer_type=all_layers&year=${selectedYear}`)
+    fetch(`${baseUrl}/Mumbai/layers?layer_type=${trustLayerType}&year=${fileYear}`)
       .then((response) => {
         if (!response.ok) {
-          throw new Error(`Unable to fetch layers for year ${selectedYear}`);
+          throw new Error(`Unable to fetch layers for year ${fileYear}`);
         }
         return response.json();
       })
-      .then((payload: any) => {
+      .then((payload: VerifiedLayerResponse) => {
         if (!isActive) {
           return;
         }
@@ -206,7 +209,7 @@ export default function UrbanMap({
     return () => {
       isActive = false;
     };
-  }, [selectedYear, activeLayers]);
+  }, [selectedYear, activeLayers, trustLayerType]);
 
   useEffect(() => {
     fetch('/api/v1/ledger/status')
