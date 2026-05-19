@@ -188,6 +188,36 @@ export default function UrbanMap({
           return;
         }
 
+        // Determine layer_type based on selected epoch year
+        let injectedLayerType: string;
+        switch (selectedYear) {
+          case 1991:
+            injectedLayerType = 'admin_ward';
+            break;
+          case 2000:
+            injectedLayerType = 'slum_boundary';
+            break;
+          case 2012:
+            injectedLayerType = 'slum_boundary';
+            break;
+          case 2024:
+            injectedLayerType = 'zone_residential';
+            break;
+          default:
+            injectedLayerType = 'admin_ward';
+        }
+
+        // Inject layer_type property into all features
+        if (data && Array.isArray(data.features)) {
+          data.features = data.features.map((feature: any) => ({
+            ...feature,
+            properties: {
+              ...feature.properties,
+              layer_type: injectedLayerType,
+            },
+          }));
+        }
+
         setMapData(data);
         setVerification((current) =>
           current?.is_verified
