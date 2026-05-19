@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const API_BASE_URL = (process.env.API_BASE_URL ?? 'http://localhost:4000').replace(/\/$/, '');
+const baseApiUrl = (process.env.NEXT_PUBLIC_API_URL || '').trim();
+// Safeguard to append /api/v1 if not explicitly written in the env dashboard
+const API_URL = baseApiUrl.endsWith('/api/v1') ? baseApiUrl : `${baseApiUrl}/api/v1`;
 
 type RouteContext = {
   params: Promise<{ path: string[] }> | { path: string[] };
@@ -10,7 +12,7 @@ export const dynamic = 'force-dynamic';
 
 function buildTargetUrl(request: NextRequest, path: string[]) {
   const incomingUrl = new URL(request.url);
-  const targetUrl = new URL(`${API_BASE_URL}/api/${path.join('/')}`);
+  const targetUrl = new URL(`${API_URL}/api/${path.join('/')}`);
   targetUrl.search = incomingUrl.search;
   return targetUrl;
 }
@@ -58,7 +60,7 @@ async function proxyRequest(request: NextRequest, context: RouteContext) {
 
     return NextResponse.json(
       {
-        error: `UrbanMemory API is unavailable at ${API_BASE_URL}. Start apps/api before using this action.`,
+        error: `UrbanMemory API is unavailable at ${API_URL}. Start apps/api before using this action.`,
       },
       { status: 503 }
     );
