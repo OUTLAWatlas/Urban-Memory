@@ -241,8 +241,10 @@ export default function UrbanMap() {
   const chainUnavailable = ledgerStatus?.connected === false;
   const isAdmin = session.mode === 'admin' && Boolean(session.admin?.token);
   const canSeal = Boolean(isAdmin && session.admin?.token && session.admin?.role !== 'pending');
-  const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN?.trim();
-  const hasMapboxToken = Boolean(mapboxToken) && !mapboxToken.startsWith('your_') && !mapboxToken.includes('example_token');
+  const mapboxToken = (process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN || '').trim();
+  const hasMapboxToken = Boolean(mapboxToken) &&
+                         !mapboxToken.startsWith('your_') &&
+                         !mapboxToken.includes('example_token');
   const useMapboxStyle = is3DMode && hasMapboxToken;
   const mapStyle = useMapboxStyle
     ? `https://api.mapbox.com/styles/v1/mapbox/dark-v11?access_token=${mapboxToken}`
