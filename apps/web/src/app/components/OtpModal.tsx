@@ -65,7 +65,10 @@ export default function OtpModal({ open, adminSession, layerType, year, city = '
       }
 
       try {
-        const response = await fetch('/api/v1/admin/request-notary', {
+        const envApiUrl = (process.env.NEXT_PUBLIC_API_URL || '').trim();
+        const cleanDomain = envApiUrl.replace(/\/api\/v1\/?$/, '').replace(/\/$/, '');
+        const requestNotaryUrl = `${cleanDomain}/api/v1/admin/request-notary`;
+        const response = await fetch(requestNotaryUrl, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -174,7 +177,10 @@ export default function OtpModal({ open, adminSession, layerType, year, city = '
     setErrorMessage('');
 
     try {
-      const response = await fetch('/api/v1/admin/confirm-notary', {
+      const envApiUrl = (process.env.NEXT_PUBLIC_API_URL || '').trim();
+      const cleanDomain = envApiUrl.replace(/\/api\/v1\/?$/, '').replace(/\/$/, '');
+      const confirmNotaryUrl = `${cleanDomain}/api/v1/admin/confirm-notary`;
+      const response = await fetch(confirmNotaryUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
