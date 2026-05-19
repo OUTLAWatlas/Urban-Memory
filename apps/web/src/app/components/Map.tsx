@@ -152,93 +152,49 @@ export default function UrbanMap({
     }
   }, [propActiveLayers]);
 
-  // Dynamic data fetching effect: responds to year and active layers changes
+  // Dynamic data fetching effect: queries Go backend for live PostGIS layer data
   useEffect(() => {
     let isActive = true;
     setIsMapLoading(true);
 
-    // Map strict timeline epochs to actual GeoJSON file names
-    let fileName: string;
-    switch (selectedYear) {
-      case 1991:
-        fileName = 'mumbai_village_boundaries.geojson';
-        break;
-      case 2000:
-        fileName = 'SRAslums_2000.geojson';
-        break;
-      case 2012:
-        fileName = 'SRAslums_2012.geojson';
-        break;
-      case 2024:
-        fileName = 'mumbai_electoral_2022.geojson';
-        break;
-      default:
-        fileName = 'mumbai_village_boundaries.geojson';
-    }
+    const apiUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1').trim();
 
-    fetch(`/data/${fileName}`)
+    fetch(`${apiUrl}/Mumbai/layers?layer_type=all_layers&year=${selectedYear}`)
       .then((response) => {
         if (!response.ok) {
-          throw new Error(`Unable to fetch ${fileName}`);
+          throw new Error(`Unable to fetch layers for year ${selectedYear}`);
         }
         return response.json();
       })
-      .then((data) => {
+      .then((payload: any) => {
         if (!isActive) {
           return;
         }
 
-        // Determine layer_type based on selected epoch year
-        let injectedLayerType: string;
-        switch (selectedYear) {
-          case 1991:
-            injectedLayerType = 'admin_ward';
-            break;
-          case 2000:
-            injectedLayerType = 'slum_boundary';
-            break;
-          case 2012:
-            injectedLayerType = 'slum_boundary';
-            break;
-          case 2024:
-            injectedLayerType = 'zone_residential';
-            break;
-          default:
-            injectedLayerType = 'admin_ward';
+        // Extract GeoJSON data from API response
+        if (payload.data && Array.isArray(payload.data.features)) {
+          setMapData(payload.data);
+        } else {
+          setMapData(EMPTY_FC);
         }
 
-        // Inject layer_type property into all features
-        if (data && Array.isArray(data.features)) {
-          data.features = data.features.map((feature: any) => ({
-            ...feature,
-            properties: {
-              ...feature.properties,
-              layer_type: injectedLayerType,
-            },
-          }));
+        // Extract verification metadata from API response
+        if (payload.verification) {
+          setVerification(payload.verification);
+        } else {
+          setVerification({
+            is_verified: false,
+            status_message: 'Layer data loaded',
+          });
         }
-
-        setMapData(data);
-        setVerification((current) =>
-          current?.is_verified
-            ? current
-            : {
-                is_verified: false,
-                status_message: 'Layer data loaded',
-              }
-        );
       })
       .catch(() => {
         if (isActive) {
           setMapData(EMPTY_FC);
-          setVerification((current) =>
-            current?.is_verified
-              ? current
-              : {
-                  is_verified: false,
-                  status_message: 'Data unavailable',
-                }
-          );
+          setVerification({
+            is_verified: false,
+            status_message: 'Data unavailable',
+          });
         }
       })
       .finally(() => {
