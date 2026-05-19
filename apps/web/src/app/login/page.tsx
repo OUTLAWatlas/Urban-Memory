@@ -33,8 +33,8 @@ export default function LoginPage() {
   const baseApiUrl = (process.env.NEXT_PUBLIC_API_URL || '').trim();
   // Standardize formatting to avoid double-slashes or missing routes
   const sanitizedApiUrl = baseApiUrl.endsWith('/api/v1') ? baseApiUrl : `${baseApiUrl}/api/v1`;
-  // Direct target destination URLs
-  const loginEndpoint = `${sanitizedApiUrl}/auth/login`;
+  // Construct the absolute address pointing directly to the Go backend
+  const directLoginUrl = `${sanitizedApiUrl}/auth/login`;
   const registerEndpoint = `${sanitizedApiUrl}/auth/register`;
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -45,7 +45,7 @@ export default function LoginPage() {
 
     try {
       if (mode === 'login') {
-        const response = await fetch(loginEndpoint, {
+        const response = await fetch(directLoginUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email, password }),
