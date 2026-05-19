@@ -157,14 +157,29 @@ export default function UrbanMap({
     let isActive = true;
     setIsMapLoading(true);
 
-    const fileYear = VALID_EPOCHS.includes(selectedYear as (typeof VALID_EPOCHS)[number])
-      ? selectedYear
-      : VALID_EPOCHS[0];
+    // Map strict timeline epochs to actual GeoJSON file names
+    let fileName: string;
+    switch (selectedYear) {
+      case 1991:
+        fileName = 'mumbai_village_boundaries.geojson';
+        break;
+      case 2000:
+        fileName = 'SRAslums_2000.geojson';
+        break;
+      case 2012:
+        fileName = 'SRAslums_2012.geojson';
+        break;
+      case 2024:
+        fileName = 'mumbai_electoral_2022.geojson';
+        break;
+      default:
+        fileName = 'mumbai_village_boundaries.geojson';
+    }
 
-    fetch(`/data/mumbai_census_${fileYear}.geojson`)
+    fetch(`/data/${fileName}`)
       .then((response) => {
         if (!response.ok) {
-          throw new Error('Unable to fetch map data');
+          throw new Error(`Unable to fetch ${fileName}`);
         }
         return response.json();
       })
