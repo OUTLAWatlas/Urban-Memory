@@ -31,11 +31,11 @@ export default function LoginPage() {
   const submitLabel = mode === 'login' ? 'Sign In' : 'Request Access';
 
   const baseApiUrl = (process.env.NEXT_PUBLIC_API_URL || '').trim();
-  // Standardize formatting to avoid double-slashes or missing routes
-  const sanitizedApiUrl = baseApiUrl.endsWith('/api/v1') ? baseApiUrl : `${baseApiUrl}/api/v1`;
-  // Construct the absolute address pointing directly to the Go backend
-  const directLoginUrl = `${sanitizedApiUrl}/auth/login`;
-  const registerEndpoint = `${sanitizedApiUrl}/auth/register`;
+  // Remove any accidental trailing slashes or subpaths from the dashboard setup
+  const pureDomain = baseApiUrl.replace(/\/api\/v1\/?$/, '').replace(/\/$/, '');
+  // Construct the absolute canonical route path matching your Go Fiber routes
+  const targetEndpoint = `${pureDomain}/api/v1/auth/login`;
+  const registerEndpoint = `${pureDomain}/api/v1/auth/register`;
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -45,9 +45,12 @@ export default function LoginPage() {
 
     try {
       if (mode === 'login') {
-        const response = await fetch(directLoginUrl, {
+        const response = await fetch(targetEndpoint, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
           body: JSON.stringify({ email, password }),
         });
 
