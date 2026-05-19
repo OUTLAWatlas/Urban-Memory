@@ -435,19 +435,22 @@ export default function UrbanMap() {
         </div>
       )}
 
-      <aside className="absolute right-4 top-20 z-10 w-[min(92vw,24rem)] rounded-[1.75rem] border border-white/10 bg-slate-950/88 p-5 text-white shadow-[0_24px_100px_rgba(0,0,0,0.5)] backdrop-blur-2xl sm:right-6 sm:top-24">
-        <div className="flex items-start justify-between gap-4 border-b border-white/10 pb-4">
-          <div>
-            <p className="text-xs uppercase tracking-[0.35em] text-slate-500">Layer Controls</p>
-            <h2 className="mt-2 text-2xl font-semibold">Temporal Delta Engine</h2>
-          </div>
-          <div className="text-right text-xs text-slate-500">
-            <p>{session.mode === 'admin' ? 'Admin session' : 'Public session'}</p>
-            <p>{session.admin?.role ? `Role: ${session.admin.role}` : 'Read only'}</p>
+      <aside className="absolute top-24 left-4 z-10 w-80 flex flex-col max-h-[calc(100vh-120px)] rounded-[1.75rem] border border-white/10 bg-slate-950/88 text-white shadow-[0_24px_100px_rgba(0,0,0,0.5)] backdrop-blur-2xl">
+        <div className="shrink-0 p-5">
+          <div className="flex items-start justify-between gap-4 border-b border-white/10 pb-4">
+            <div>
+              <p className="text-xs uppercase tracking-[0.35em] text-slate-500">Layer Controls</p>
+              <h2 className="mt-2 text-2xl font-semibold">Temporal Delta Engine</h2>
+            </div>
+            <div className="text-right text-xs text-slate-500">
+              <p>{session.mode === 'admin' ? 'Admin session' : 'Public session'}</p>
+              <p>{session.admin?.role ? `Role: ${session.admin.role}` : 'Read only'}</p>
+            </div>
           </div>
         </div>
 
-        <div className="mt-4 space-y-4">
+        <div className="overflow-y-auto pr-1 normal-scrollbar flex-1 p-5">
+          <div className="space-y-4">
           <button
             type="button"
             onClick={() => setIs3DMode((current) => !current)}
@@ -596,8 +599,9 @@ export default function UrbanMap() {
               Hovering {formatLayerName(getLayerType(hoverInfo.feature))} at {Math.round(hoverInfo.x)}, {Math.round(hoverInfo.y)}
             </div>
           )}
-        </div>
-      </aside>
+            </div>
+          </div>
+        </aside>
 
       <div className="absolute bottom-4 left-4 z-10 rounded-[1.5rem] border border-white/10 bg-slate-950/90 px-4 py-3 text-sm text-slate-300 shadow-[0_20px_90px_rgba(0,0,0,0.45)] backdrop-blur-xl">
         <div className="flex items-center gap-3">
