@@ -71,32 +71,75 @@ function formatLayerName(layerType: string): string {
     .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
-export default function UrbanMap() {
+type UrbanMapProps = {
+  selectedYear?: number;
+  activeLayers?: Partial<Record<typeof TRUST_LAYER_OPTIONS[number], boolean>>;
+  onYearChange?: (year: number) => void;
+  onLayerToggle?: (layerType: string, isActive: boolean) => void;
+};
+
+export default function UrbanMap({
+  selectedYear: propYear = 2012,
+  activeLayers: propActiveLayers,
+  onYearChange,
+  onLayerToggle,
+}: UrbanMapProps) {
   const { session } = useSession();
   const mapRef = useRef<MapRef | null>(null);
-  const [year, setYear] = useState(2012);
-  const [geoData, setGeoData] = useState<LayersApiResponse | null>(null);
+  
+  // Initialize layer visibility from props or defaults
+  const defaultActiveLayers = {
+    admin_ward: true,
+    slum_boundary: true,
+    forest_cover: true,
+    zone_industrial: true,
+    zone_residential: true,
+    road_network: true,
+  };
+  const activeLayersMap = propActiveLayers ? { ...defaultActiveLayers, ...propActiveLayers } : defaultActiveLayers;
+
+  const [year, setYear] = useState(propYear);
+  const [geoJsonData, setGeoJsonData] = useState<LayersApiResponse | null>(null);
   const [verification, setVerification] = useState<VerificationPayload | null>(null);
   const [hoverInfo, setHoverInfo] = useState<HoverInfo | null>(null);
   const [selectedFeature, setSelectedFeature] = useState<GeoJSON.Feature | null>(null);
   const [trustLayerType, setTrustLayerType] = useState<TrustLayerChoice>('slum_boundary');
   const [is3DMode, setIs3DMode] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isMapLoading, setIsMapLoading] = useState(false);
   const [ledgerStatus, setLedgerStatus] = useState<LedgerStatusResponse | null>(null);
   const [refreshTick, setRefreshTick] = useState(0);
   const [notarizeMessage, setNotarizeMessage] = useState('');
   const [isOtpModalOpen, setIsOtpModalOpen] = useState(false);
 
-  const [showWards, setShowWards] = useState(true);
-  const [showSlums, setShowSlums] = useState(true);
-  const [showForestCover, setShowForestCover] = useState(true);
-  const [showIndustrialZones, setShowIndustrialZones] = useState(true);
-  const [showResidentialZones, setShowResidentialZones] = useState(true);
-  const [showRoadNetwork, setShowRoadNetwork] = useState(true);
+  // Layer visibility state (can be controlled by props or local toggle)
+  const [showWards, setShowWards] = useState(activeLayersMap.admin_ward ?? true);
+  const [showSlums, setShowSlums] = useState(activeLayersMap.slum_boundary ?? true);
+  const [showForestCover, setShowForestCover] = useState(activeLayersMap.forest_cover ?? true);
+  const [showIndustrialZones, setShowIndustrialZones] = useState(activeLayersMap.zone_industrial ?? true);
+  const [showResidentialZones, setShowResidentialZones] = useState(activeLayersMap.zone_residential ?? true);
+  const [showRoadNetwork, setShowRoadNetwork] = useState(activeLayersMap.road_network ?? true);
 
+  // Sync year prop changes to local state
+  useEffect(() => {
+    setYear(propYear);
+  }, [propYear]);
+
+  // Sync active layers prop changes to local visibility state
+  useEffect(() => {
+    if (propActiveLayers) {
+      if (propActiveLayers.admin_ward !== undefined) setShowWards(propActiveLayers.admin_ward);
+      if (propActiveLayers.slum_boundary !== undefined) setShowSlums(propActiveLayers.slum_boundary);
+      if (propActiveLayers.forest_cover !== undefined) setShowForestCover(propActiveLayers.forest_cover);
+      if (propActiveLayers.zone_industrial !== undefined) setShowIndustrialZones(propActiveLayers.zone_industrial);
+      if (propActiveLayers.zone_residential !== undefined) setShowResidentialZones(propActiveLayers.zone_residential);
+      if (propActiveLayers.road_network !== undefined) setShowRoadNetwork(propActiveLayers.road_network);
+    }
+  }, [propActiveLayers]);
+
+  // Dynamic data fetching effect: responds to year and active layers changes
   useEffect(() => {
     let isActive = true;
-    setIsLoading(true);
+    setIsMapLoading(true);
 
     const fetchLayerData = async (layerType: string) => {
       const response = await fetch(`/api/v1/mumbai/layers?year=${year}&layer_type=${encodeURIComponent(layerType)}`);
@@ -117,15 +160,15 @@ export default function UrbanMap() {
         }
 
         if (!payload) {
-          setGeoData(EMPTY_FC as LayersApiResponse);
+          setGeoJsonData(EMPTY_FC as LayersApiResponse);
           setVerification({ is_verified: false, status_message: 'Fetch Failed' });
           return;
         }
 
         if (payload.data && Array.isArray(payload.data.features)) {
-          setGeoData(payload.data);
+          setGeoJsonData(payload.data);
         } else {
-          setGeoData(EMPTY_FC as LayersApiResponse);
+          setGeoJsonData(EMPTY_FC as LayersApiResponse);
         }
 
         setVerification(
@@ -136,12 +179,12 @@ export default function UrbanMap() {
         );
       } catch {
         if (isActive) {
-          setGeoData(EMPTY_FC as LayersApiResponse);
+          setGeoJsonData(EMPTY_FC as LayersApiResponse);
           setVerification({ is_verified: false, status_message: 'Network Error' });
         }
       } finally {
         if (isActive) {
-          setIsLoading(false);
+          setIsMapLoading(false);
         }
       }
     };
@@ -155,7 +198,7 @@ export default function UrbanMap() {
         }
 
         const combinedFeatures = payloads.flatMap((payload) => payload?.data?.features ?? []);
-        setGeoData({
+        setGeoJsonData({
           type: 'FeatureCollection',
           features: combinedFeatures,
         });
@@ -165,12 +208,12 @@ export default function UrbanMap() {
         });
       } catch {
         if (isActive) {
-          setGeoData(EMPTY_FC as LayersApiResponse);
+          setGeoJsonData(EMPTY_FC as LayersApiResponse);
           setVerification({ is_verified: false, status_message: 'Network Error' });
         }
       } finally {
         if (isActive) {
-          setIsLoading(false);
+          setIsMapLoading(false);
         }
       }
     };
@@ -194,11 +237,11 @@ export default function UrbanMap() {
   }, []);
 
   const filteredData = useMemo(() => {
-    if (!geoData || !geoData.features) {
+    if (!geoJsonData || !geoJsonData.features) {
       return EMPTY_FC;
     }
 
-    const features = geoData.features.filter((feature) => {
+    const features = geoJsonData.features.filter((feature) => {
       const layerType = getLayerType(feature);
       if (layerType === 'admin_ward' && !showWards) return false;
       if (layerType === 'slum_boundary' && !showSlums) return false;
@@ -210,7 +253,7 @@ export default function UrbanMap() {
     });
 
     return { type: 'FeatureCollection' as const, features };
-  }, [geoData, showForestCover, showIndustrialZones, showResidentialZones, showRoadNetwork, showSlums, showWards]);
+  }, [geoJsonData, showForestCover, showIndustrialZones, showResidentialZones, showRoadNetwork, showSlums, showWards]);
 
   const stats = useMemo(() => {
     const totals = {
@@ -393,6 +436,15 @@ export default function UrbanMap() {
             />
           </Source>
         </MapGL>
+
+        {isMapLoading && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/20 backdrop-blur-sm z-20">
+            <div className="flex flex-col items-center gap-4">
+              <div className="h-12 w-12 animate-spin rounded-full border-4 border-slate-600 border-t-cyan-400" />
+              <p className="text-sm font-semibold text-cyan-300">Loading map data...</p>
+            </div>
+          </div>
+        )}
       </div>
 
       {selectedFeature && (
@@ -508,32 +560,80 @@ export default function UrbanMap() {
           <div className="grid grid-cols-2 gap-3 text-sm text-slate-300">
             <label className="rounded-2xl border border-white/10 bg-white/5 p-3">
               <span className="mb-3 block text-xs uppercase tracking-[0.25em] text-slate-500">Administrative Wards</span>
-              <input type="checkbox" checked={showWards} onChange={(event) => setShowWards(event.target.checked)} className="accent-cyan-400" />
+              <input
+                type="checkbox"
+                checked={showWards}
+                onChange={(event) => {
+                  setShowWards(event.target.checked);
+                  onLayerToggle?.('admin_ward', event.target.checked);
+                }}
+                className="accent-cyan-400"
+              />
               <span className="ml-2">{stats.wards}</span>
             </label>
             <label className="rounded-2xl border border-white/10 bg-white/5 p-3">
               <span className="mb-3 block text-xs uppercase tracking-[0.25em] text-slate-500">SRA Slum Clusters</span>
-              <input type="checkbox" checked={showSlums} onChange={(event) => setShowSlums(event.target.checked)} className="accent-rose-400" />
+              <input
+                type="checkbox"
+                checked={showSlums}
+                onChange={(event) => {
+                  setShowSlums(event.target.checked);
+                  onLayerToggle?.('slum_boundary', event.target.checked);
+                }}
+                className="accent-rose-400"
+              />
               <span className="ml-2">{stats.slums}</span>
             </label>
             <label className="rounded-2xl border border-white/10 bg-white/5 p-3">
               <span className="mb-3 block text-xs uppercase tracking-[0.25em] text-slate-500">Forest Cover</span>
-              <input type="checkbox" checked={showForestCover} onChange={(event) => setShowForestCover(event.target.checked)} className="accent-emerald-400" />
+              <input
+                type="checkbox"
+                checked={showForestCover}
+                onChange={(event) => {
+                  setShowForestCover(event.target.checked);
+                  onLayerToggle?.('forest_cover', event.target.checked);
+                }}
+                className="accent-emerald-400"
+              />
               <span className="ml-2">{stats.forests}</span>
             </label>
             <label className="rounded-2xl border border-white/10 bg-white/5 p-3">
               <span className="mb-3 block text-xs uppercase tracking-[0.25em] text-slate-500">Industrial Zones</span>
-              <input type="checkbox" checked={showIndustrialZones} onChange={(event) => setShowIndustrialZones(event.target.checked)} className="accent-yellow-400" />
+              <input
+                type="checkbox"
+                checked={showIndustrialZones}
+                onChange={(event) => {
+                  setShowIndustrialZones(event.target.checked);
+                  onLayerToggle?.('zone_industrial', event.target.checked);
+                }}
+                className="accent-yellow-400"
+              />
               <span className="ml-2">{stats.industrial}</span>
             </label>
             <label className="rounded-2xl border border-white/10 bg-white/5 p-3">
               <span className="mb-3 block text-xs uppercase tracking-[0.25em] text-slate-500">Residential Zones</span>
-              <input type="checkbox" checked={showResidentialZones} onChange={(event) => setShowResidentialZones(event.target.checked)} className="accent-violet-400" />
+              <input
+                type="checkbox"
+                checked={showResidentialZones}
+                onChange={(event) => {
+                  setShowResidentialZones(event.target.checked);
+                  onLayerToggle?.('zone_residential', event.target.checked);
+                }}
+                className="accent-violet-400"
+              />
               <span className="ml-2">{stats.residential}</span>
             </label>
             <label className="rounded-2xl border border-white/10 bg-white/5 p-3">
               <span className="mb-3 block text-xs uppercase tracking-[0.25em] text-slate-500">Arterial Roads</span>
-              <input type="checkbox" checked={showRoadNetwork} onChange={(event) => setShowRoadNetwork(event.target.checked)} className="accent-white" />
+              <input
+                type="checkbox"
+                checked={showRoadNetwork}
+                onChange={(event) => {
+                  setShowRoadNetwork(event.target.checked);
+                  onLayerToggle?.('road_network', event.target.checked);
+                }}
+                className="accent-white"
+              />
               <span className="ml-2">{stats.roads}</span>
             </label>
           </div>
@@ -548,7 +648,11 @@ export default function UrbanMap() {
               min="1991"
               max="2024"
               value={year}
-              onChange={(event) => setYear(Number(event.target.value))}
+              onChange={(event) => {
+                const newYear = Number(event.target.value);
+                setYear(newYear);
+                onYearChange?.(newYear);
+              }}
               className="h-2 w-full cursor-pointer appearance-none rounded-full bg-slate-700 accent-cyan-400"
             />
             <div className="mt-2 flex justify-between text-[10px] uppercase tracking-[0.25em] text-slate-500">
