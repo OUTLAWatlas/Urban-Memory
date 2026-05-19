@@ -160,9 +160,10 @@ export default function UrbanMap({
     const fileYear = VALID_EPOCHS.includes(selectedYear as (typeof VALID_EPOCHS)[number])
       ? selectedYear
       : VALID_EPOCHS[0];
-    const baseUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1').replace(/\/$/, '');
+    const baseUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000').replace(/\/$/, '');
+    const fetchUrl = `${baseUrl}/api/v1/Mumbai/layers?layer_type=${trustLayerType}&year=${fileYear}`;
 
-    fetch(`${baseUrl}/Mumbai/layers?layer_type=${trustLayerType}&year=${fileYear}`)
+    fetch(fetchUrl)
       .then((response) => {
         if (!response.ok) {
           throw new Error(`Unable to fetch layers for year ${fileYear}`);
