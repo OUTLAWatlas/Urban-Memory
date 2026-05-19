@@ -58,6 +58,8 @@ const TRUST_LAYER_OPTIONS = [
   'road_network',
 ] as const;
 
+const VALID_EPOCHS = [1991, 2000, 2012, 2024] as const;
+
 const ALL_LAYER_OPTION = 'all_layers';
 type TrustLayerChoice = (typeof TRUST_LAYER_OPTIONS)[number] | typeof ALL_LAYER_OPTION;
 
@@ -98,8 +100,8 @@ export default function UrbanMap({
   };
   const activeLayersMap = propActiveLayers ? { ...defaultActiveLayers, ...propActiveLayers } : defaultActiveLayers;
 
-  const [year, setYear] = useState(propYear);
-  const [geoJsonData, setGeoJsonData] = useState<LayersApiResponse | null>(null);
+  const [selectedYear, setSelectedYear] = useState(propYear);
+  const [mapData, setMapData] = useState<any>(null);
   const [verification, setVerification] = useState<VerificationPayload | null>(null);
   const [hoverInfo, setHoverInfo] = useState<HoverInfo | null>(null);
   const [selectedFeature, setSelectedFeature] = useState<GeoJSON.Feature | null>(null);
@@ -107,7 +109,6 @@ export default function UrbanMap({
   const [is3DMode, setIs3DMode] = useState(false);
   const [isMapLoading, setIsMapLoading] = useState(false);
   const [ledgerStatus, setLedgerStatus] = useState<LedgerStatusResponse | null>(null);
-  const [refreshTick, setRefreshTick] = useState(0);
   const [notarizeMessage, setNotarizeMessage] = useState('');
   const [isOtpModalOpen, setIsOtpModalOpen] = useState(false);
 
@@ -119,9 +120,24 @@ export default function UrbanMap({
   const [showResidentialZones, setShowResidentialZones] = useState(activeLayersMap.zone_residential ?? true);
   const [showRoadNetwork, setShowRoadNetwork] = useState(activeLayersMap.road_network ?? true);
 
+  const activeLayers = useMemo(
+    () => ({
+      admin_ward: showWards,
+      slum_boundary: showSlums,
+      forest_cover: showForestCover,
+      zone_industrial: showIndustrialZones,
+      zone_residential: showResidentialZones,
+      road_network: showRoadNetwork,
+    }),
+    [showWards, showSlums, showForestCover, showIndustrialZones, showResidentialZones, showRoadNetwork]
+  );
+
+  const selectedYearIndex = Math.max(0, VALID_EPOCHS.indexOf(selectedYear as (typeof VALID_EPOCHS)[number]));
+
   // Sync year prop changes to local state
   useEffect(() => {
-    setYear(propYear);
+    const normalizedYear = VALID_EPOCHS.includes(propYear as (typeof VALID_EPOCHS)[number]) ? propYear : VALID_EPOCHS[0];
+    setSelectedYear(normalizedYear);
   }, [propYear]);
 
   // Sync active layers prop changes to local visibility state
@@ -141,93 +157,55 @@ export default function UrbanMap({
     let isActive = true;
     setIsMapLoading(true);
 
-    const fetchLayerData = async (layerType: string) => {
-      const response = await fetch(`/api/v1/mumbai/layers?year=${year}&layer_type=${encodeURIComponent(layerType)}`);
+    const fileYear = VALID_EPOCHS.includes(selectedYear as (typeof VALID_EPOCHS)[number])
+      ? selectedYear
+      : VALID_EPOCHS[0];
 
-      if (!response.ok) {
-        return null;
-      }
-
-      return (await response.json()) as VerifiedLayerResponse;
-    };
-
-    const loadSingleLayer = async () => {
-      try {
-        const payload = await fetchLayerData(trustLayerType);
-
+    fetch(`/data/mumbai_census_${fileYear}.geojson`)
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error('Unable to fetch map data');
+        }
+        return response.json();
+      })
+      .then((data) => {
         if (!isActive) {
           return;
         }
 
-        if (!payload) {
-          setGeoJsonData(EMPTY_FC as LayersApiResponse);
-          setVerification({ is_verified: false, status_message: 'Fetch Failed' });
-          return;
-        }
-
-        if (payload.data && Array.isArray(payload.data.features)) {
-          setGeoJsonData(payload.data);
-        } else {
-          setGeoJsonData(EMPTY_FC as LayersApiResponse);
-        }
-
-        setVerification(
-          payload.verification ?? {
-            is_verified: false,
-            status_message: 'Unknown Status',
-          }
+        setMapData(data);
+        setVerification((current) =>
+          current?.is_verified
+            ? current
+            : {
+                is_verified: false,
+                status_message: 'Layer data loaded',
+              }
         );
-      } catch {
+      })
+      .catch(() => {
         if (isActive) {
-          setGeoJsonData(EMPTY_FC as LayersApiResponse);
-          setVerification({ is_verified: false, status_message: 'Network Error' });
+          setMapData(EMPTY_FC);
+          setVerification((current) =>
+            current?.is_verified
+              ? current
+              : {
+                  is_verified: false,
+                  status_message: 'Data unavailable',
+                }
+          );
         }
-      } finally {
-        if (isActive) {
-          setIsMapLoading(false);
-        }
-      }
-    };
-
-    const loadAllLayers = async () => {
-      try {
-        const payloads = await Promise.all(TRUST_LAYER_OPTIONS.map((layerType) => fetchLayerData(layerType)));
-
-        if (!isActive) {
-          return;
-        }
-
-        const combinedFeatures = payloads.flatMap((payload) => payload?.data?.features ?? []);
-        setGeoJsonData({
-          type: 'FeatureCollection',
-          features: combinedFeatures,
-        });
-        setVerification({
-          is_verified: false,
-          status_message: combinedFeatures.length > 0 ? 'All Layers Loaded' : 'Record Not Found',
-        });
-      } catch {
-        if (isActive) {
-          setGeoJsonData(EMPTY_FC as LayersApiResponse);
-          setVerification({ is_verified: false, status_message: 'Network Error' });
-        }
-      } finally {
+      })
+      .finally(() => {
         if (isActive) {
           setIsMapLoading(false);
         }
-      }
-    };
-
-    if (trustLayerType === ALL_LAYER_OPTION) {
-      void loadAllLayers();
-    } else {
-      void loadSingleLayer();
-    }
+      });
 
     return () => {
       isActive = false;
     };
-  }, [year, trustLayerType, refreshTick]);
+  }, [selectedYear, activeLayers]);
 
   useEffect(() => {
     fetch('/api/v1/ledger/status')
@@ -237,23 +215,23 @@ export default function UrbanMap({
   }, []);
 
   const filteredData = useMemo(() => {
-    if (!geoJsonData || !geoJsonData.features) {
+    if (!mapData || !Array.isArray(mapData.features)) {
       return EMPTY_FC;
     }
 
-    const features = geoJsonData.features.filter((feature) => {
+    const features = mapData.features.filter((feature: GeoJSON.Feature) => {
       const layerType = getLayerType(feature);
-      if (layerType === 'admin_ward' && !showWards) return false;
-      if (layerType === 'slum_boundary' && !showSlums) return false;
-      if (layerType === 'forest_cover' && !showForestCover) return false;
-      if (layerType === 'zone_industrial' && !showIndustrialZones) return false;
-      if (layerType === 'zone_residential' && !showResidentialZones) return false;
-      if (layerType === 'road_network' && !showRoadNetwork) return false;
+      if (layerType === 'admin_ward' && !activeLayers.admin_ward) return false;
+      if (layerType === 'slum_boundary' && !activeLayers.slum_boundary) return false;
+      if (layerType === 'forest_cover' && !activeLayers.forest_cover) return false;
+      if (layerType === 'zone_industrial' && !activeLayers.zone_industrial) return false;
+      if (layerType === 'zone_residential' && !activeLayers.zone_residential) return false;
+      if (layerType === 'road_network' && !activeLayers.road_network) return false;
       return true;
     });
 
     return { type: 'FeatureCollection' as const, features };
-  }, [geoJsonData, showForestCover, showIndustrialZones, showResidentialZones, showRoadNetwork, showSlums, showWards]);
+  }, [activeLayers, mapData]);
 
   const stats = useMemo(() => {
     const totals = {
@@ -372,69 +350,76 @@ export default function UrbanMap({
             />
           )}
 
-          <Source id="urban-data" type="geojson" data={filteredData}>
-            {is3DMode && (
-              <Layer
-                id="urban-topography"
-                type="fill-extrusion"
-                filter={['!=', ['get', 'layer_type'], 'road_network']}
-                paint={{
-                  'fill-extrusion-height': [
-                    'match',
-                    ['get', 'layer_type'],
-                    'forest_cover', 70,
-                    'admin_ward', 120,
-                    'slum_boundary', 180,
-                    'zone_residential', 220,
-                    'zone_industrial', 260,
-                    40,
-                  ],
-                  'fill-extrusion-base': 0,
-                  'fill-extrusion-opacity': 0.52,
-                  'fill-extrusion-color': [
-                    'match',
-                    ['get', 'layer_type'],
-                    'forest_cover', '#14532d',
-                    'admin_ward', '#1d4ed8',
-                    'slum_boundary', '#7f1d1d',
-                    'zone_residential', '#5b21b6',
-                    'zone_industrial', '#854d0e',
-                    '#334155',
-                  ],
-                }}
-              />
-            )}
+          <Source
+            id="mumbai-dynamic-layer"
+            type="geojson"
+            data={filteredData || { type: 'FeatureCollection', features: [] }}
+          />
 
+          {is3DMode && (
             <Layer
-              id="urban-layers"
-              type="fill"
+              id="urban-topography"
+              source="mumbai-dynamic-layer"
+              type="fill-extrusion"
+              filter={['!=', ['get', 'layer_type'], 'road_network']}
               paint={{
-                'fill-color': [
+                'fill-extrusion-height': [
                   'match',
                   ['get', 'layer_type'],
-                  'slum_boundary', '#ef4444',
-                  'admin_ward', '#3b82f6',
-                  'forest_cover', '#22c55e',
-                  'zone_industrial', '#facc15',
-                  'zone_residential', '#a855f7',
-                  'road_network', '#ffffff',
-                  '#888888',
+                  'forest_cover', 70,
+                  'admin_ward', 120,
+                  'slum_boundary', 180,
+                  'zone_residential', 220,
+                  'zone_industrial', 260,
+                  40,
                 ],
-                'fill-opacity': ['case', ['boolean', ['feature-state', 'hover'], false], 0.8, 0.3],
-                'fill-outline-color': '#ffffff',
+                'fill-extrusion-base': 0,
+                'fill-extrusion-opacity': 0.52,
+                'fill-extrusion-color': [
+                  'match',
+                  ['get', 'layer_type'],
+                  'forest_cover', '#14532d',
+                  'admin_ward', '#1d4ed8',
+                  'slum_boundary', '#7f1d1d',
+                  'zone_residential', '#5b21b6',
+                  'zone_industrial', '#854d0e',
+                  '#334155',
+                ],
               }}
             />
-            <Layer
-              id="road-network-lines"
-              type="line"
-              filter={['==', ['get', 'layer_type'], 'road_network']}
-              paint={{
-                'line-color': '#ffffff',
-                'line-width': 2,
-                'line-opacity': 0.95,
-              }}
-            />
-          </Source>
+          )}
+
+          <Layer
+            id="urban-layers"
+            source="mumbai-dynamic-layer"
+            type="fill"
+            paint={{
+              'fill-color': [
+                'match',
+                ['get', 'layer_type'],
+                'slum_boundary', '#ef4444',
+                'admin_ward', '#3b82f6',
+                'forest_cover', '#22c55e',
+                'zone_industrial', '#facc15',
+                'zone_residential', '#a855f7',
+                'road_network', '#ffffff',
+                '#888888',
+              ],
+              'fill-opacity': ['case', ['boolean', ['feature-state', 'hover'], false], 0.8, 0.3],
+              'fill-outline-color': '#ffffff',
+            }}
+          />
+          <Layer
+            id="road-network-lines"
+            source="mumbai-dynamic-layer"
+            type="line"
+            filter={['==', ['get', 'layer_type'], 'road_network']}
+            paint={{
+              'line-color': '#ffffff',
+              'line-width': 2,
+              'line-opacity': 0.95,
+            }}
+          />
         </MapGL>
 
         {isMapLoading && (
@@ -641,25 +626,26 @@ export default function UrbanMap({
           <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
             <div className="mb-3 flex items-center justify-between gap-3">
               <span className="text-xs uppercase tracking-[0.3em] text-slate-500">Timeline</span>
-              <span className="text-4xl font-semibold tracking-tight text-white">{year}</span>
+              <span className="text-4xl font-semibold tracking-tight text-white">{selectedYear}</span>
             </div>
             <input
               type="range"
-              min="1991"
-              max="2024"
-              value={year}
+              min={0}
+              max={VALID_EPOCHS.length - 1}
+              step={1}
+              value={selectedYearIndex}
               onChange={(event) => {
-                const newYear = Number(event.target.value);
-                setYear(newYear);
+                const nextIndex = Number(event.target.value);
+                const newYear = VALID_EPOCHS[nextIndex] ?? VALID_EPOCHS[0];
+                setSelectedYear(newYear);
                 onYearChange?.(newYear);
               }}
               className="h-2 w-full cursor-pointer appearance-none rounded-full bg-slate-700 accent-cyan-400"
             />
             <div className="mt-2 flex justify-between text-[10px] uppercase tracking-[0.25em] text-slate-500">
-              <span>1991</span>
-              <span>2000</span>
-              <span>2012</span>
-              <span>2024</span>
+              {VALID_EPOCHS.map((epoch) => (
+                <span key={epoch}>{epoch}</span>
+              ))}
             </div>
           </div>
 
@@ -718,7 +704,7 @@ export default function UrbanMap({
         open={isOtpModalOpen}
         adminSession={session.admin}
         layerType={trustLayerType}
-        year={year}
+        year={selectedYear}
         onClose={() => setIsOtpModalOpen(false)}
         onSuccess={handleSealSuccess}
       />
