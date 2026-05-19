@@ -161,6 +161,7 @@ func main() {
 	app.Post("/api/v1/admin/register", controllers.RegisterAdmin(db))
 	app.Post("/api/v1/admin/login", controllers.LoginAdmin(db))
 	app.Get("/api/v1/admin/pending-users", adminAuthRequired(), controllers.ListPendingAdmins(db))
+	log.Println("🔐 Core Auth Middleware Mounted: /api/v1/admin/register [POST]")
 	app.Post("/api/admin/request-approve-user", controllers.RequestApproveAdminOTP(db, mailer))
 	app.Post("/api/admin/approve-user", controllers.ApproveAdmin(db, mailer))
 	app.Post("/api/v1/admin/request-password-change", controllers.RequestPasswordChange(db, mailer))
