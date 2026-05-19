@@ -124,13 +124,17 @@ export default function ProfileControl({ inline = false }: { inline?: boolean } 
           return;
         }
 
-        // Safe array handling with fallback guards
-        if (Array.isArray(payload.pending_admins)) {
+        console.log('[ADMIN_DASHBOARD] Raw API payload received:', payload);
+
+        // Multi-layered data format guard
+        if (Array.isArray(payload)) {
+          // Direct array response
+          setPendingAdmins(payload);
+        } else if (Array.isArray(payload.pending_admins)) {
+          // Wrapped in pending_admins property
           setPendingAdmins(payload.pending_admins);
-        } else if (payload.pending_admins && typeof payload.pending_admins === 'object') {
-          console.error('[ADMIN_QUEUE] API returned non-array pending_admins:', payload.pending_admins);
-          setPendingAdmins([]);
         } else {
+          console.error('[ADMIN_DASHBOARD] 🔴 Invalid data type returned. Expected array, received:', payload);
           setPendingAdmins([]);
         }
       } catch (error) {
@@ -190,13 +194,17 @@ export default function ProfileControl({ inline = false }: { inline?: boolean } 
         return;
       }
 
-      // Safe array handling with fallback guards
-      if (Array.isArray(payload.pending_admins)) {
+      console.log('[ADMIN_DASHBOARD] Raw API payload received:', payload);
+
+      // Multi-layered data format guard
+      if (Array.isArray(payload)) {
+        // Direct array response
+        setPendingAdmins(payload);
+      } else if (Array.isArray(payload.pending_admins)) {
+        // Wrapped in pending_admins property
         setPendingAdmins(payload.pending_admins);
-      } else if (payload.pending_admins && typeof payload.pending_admins === 'object') {
-        console.error('[ADMIN_QUEUE] API returned non-array pending_admins:', payload.pending_admins);
-        setPendingAdmins([]);
       } else {
+        console.error('[ADMIN_DASHBOARD] 🔴 Invalid data type returned. Expected array, received:', payload);
         setPendingAdmins([]);
       }
     } catch (error) {
@@ -498,7 +506,12 @@ export default function ProfileControl({ inline = false }: { inline?: boolean } 
                     {pendingBusy ? (
                       <div className="px-5 py-6 text-sm text-slate-400">Loading pending approvals...</div>
                     ) : pendingAdmins.length === 0 ? (
-                      <div className="px-5 py-6 text-sm text-slate-400">No pending administrative profiles are waiting for review.</div>
+                      <div className="px-5 py-6">
+                        <div className="rounded-2xl border border-emerald-400/15 bg-emerald-400/10 px-4 py-4 text-sm text-emerald-100">
+                          <p className="font-medium">No pending administrative applications found in the ledger.</p>
+                          <p className="mt-1 text-emerald-100/80">All registration requests have been reviewed and actioned.</p>
+                        </div>
+                      </div>
                     ) : (
                       pendingAdmins.map((pendingAdmin) => (
                         <div key={pendingAdmin.id} className="grid grid-cols-[1.4fr_0.9fr_0.8fr] gap-4 border-b border-white/5 px-5 py-4 text-sm text-slate-200 last:border-b-0">
