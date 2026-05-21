@@ -2,9 +2,11 @@ package services
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"mime/multipart"
 	"net/http"
 	"os"
@@ -20,8 +22,16 @@ type pinataUploadResponse struct {
 	Message  string `json:"message"`
 }
 
+func init() {
+	apiKey := strings.TrimSpace(os.Getenv("PINATA_API_KEY"))
+	jwt := strings.TrimSpace(os.Getenv("PINATA_JWT"))
+	if apiKey == "" || jwt == "" {
+		log.Printf("[IPFS][WARN] Pinata credentials are incomplete: PINATA_API_KEY set=%t PINATA_JWT set=%t", apiKey != "", jwt != "")
+	}
+}
+
 // UploadToIPFS uploads raw GeoJSON bytes to Pinata and returns the resulting CID.
-func UploadToIPFS(jsonData []byte) (string, error) {
+func UploadToIPFS(ctx context.Context, jsonData []byte) (string, error) {
 	if len(jsonData) == 0 {
 		return "", fmt.Errorf("jsonData is empty")
 	}
@@ -51,14 +61,14 @@ func UploadToIPFS(jsonData []byte) (string, error) {
 		return "", fmt.Errorf("finalize multipart payload: %w", err)
 	}
 
-	req, err := http.NewRequest(http.MethodPost, endpoint, body)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, body)
 	if err != nil {
 		return "", fmt.Errorf("build pinata request: %w", err)
 	}
 	req.Header.Set("Authorization", "Bearer "+jwt)
 	req.Header.Set("Content-Type", writer.FormDataContentType())
 
-	client := &http.Client{Timeout: 45 * time.Second}
+	client := &http.Client{Timeout: 180 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("upload to pinata: %w", err)

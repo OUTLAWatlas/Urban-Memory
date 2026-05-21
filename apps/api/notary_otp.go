@@ -83,7 +83,7 @@ func RequestNotary(db *sql.DB, mailer services.MailSender) fiber.Handler {
 			"message":    "MFA Verification Required. OTP sent to your registered channel.",
 			"admin_id":   admin.ID,
 			"email":      admin.Email,
-			"role":      admin.Role,
+			"role":       admin.Role,
 			"layer_type": layerType,
 			"year":       year,
 			"expires_at": expiresAt.Format(time.RFC3339),
@@ -97,6 +97,9 @@ func ConfirmNotary(db *sql.DB) fiber.Handler {
 		if db == nil {
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "database is not initialized"})
 		}
+
+		ctx, cancel := context.WithTimeout(c.UserContext(), 180*time.Second)
+		defer cancel()
 
 		var req confirmNotaryPayload
 		if err := c.BodyParser(&req); err != nil {
@@ -130,7 +133,7 @@ func ConfirmNotary(db *sql.DB) fiber.Handler {
 
 		log.Printf("[OTP][CONFIRM] admin_id=%d layer_type=%s year=%d validating code", admin.ID, layerType, year)
 
-		if _, err := services.VerifyAndConsumeOTP(c.UserContext(), req.AdminID, otpCode, services.OTPPurposeNotary); err != nil {
+		if _, err := services.VerifyAndConsumeOTP(ctx, req.AdminID, otpCode, services.OTPPurposeNotary); err != nil {
 			log.Printf("[OTP][CONFIRM] admin_id=%d otp_validation_failed=%v", req.AdminID, err)
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized / Code Expired"})
 		}
@@ -142,7 +145,7 @@ func ConfirmNotary(db *sql.DB) fiber.Handler {
 			city = defaultDataCity
 		}
 
-		result, err := executeDecentralizedNotaryPipeline(c.UserContext(), db, city, layerType, int(year))
+		result, err := executeDecentralizedNotaryPipeline(ctx, db, city, layerType, int(year))
 		if err != nil {
 			log.Printf("[PIPELINE][ERROR] admin_id=%d layer_type=%s year=%d err=%v", req.AdminID, layerType, year, err)
 			return c.Status(fiber.StatusBadGateway).JSON(fiber.Map{"error": err.Error()})
@@ -223,7 +226,7 @@ func executeDecentralizedNotaryPipeline(ctx context.Context, db *sql.DB, city, l
 	log.Printf("[PIPELINE][HASH] city=%s layer_type=%s year=%d sha256=%s bytes=%d", city, layerType, year, result.Hash, len(payload))
 
 	log.Printf("[PIPELINE][IPFS] uploading payload to Pinata")
-	ipfsCID, err := services.UploadToIPFS(payload)
+	ipfsCID, err := services.UploadToIPFS(ctx, payload)
 	if err != nil {
 		return result, fmt.Errorf("failed to upload payload to ipfs: %w", err)
 	}
@@ -251,4 +254,3 @@ func executeDecentralizedNotaryPipeline(ctx context.Context, db *sql.DB, city, l
 
 	return result, nil
 }
-

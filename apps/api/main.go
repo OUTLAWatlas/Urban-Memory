@@ -524,7 +524,7 @@ func SealDecentralizedLayer() fiber.Handler {
 			city = defaultDataCity
 		}
 
-		ctx, cancel := context.WithTimeout(c.UserContext(), 60*time.Second)
+		ctx, cancel := context.WithTimeout(c.UserContext(), 180*time.Second)
 		defer cancel()
 
 		layerData, err := GetLayerDataByType(ctx, appDB, city, layerType, req.Year)
@@ -543,7 +543,7 @@ func SealDecentralizedLayer() fiber.Handler {
 
 		sha256Hash := GenerateSHA256Hash(payload)
 
-		ipfsCID, err := services.UploadToIPFS(payload)
+		ipfsCID, err := services.UploadToIPFS(ctx, payload)
 		if err != nil {
 			log.Printf("seal-decentralized pinata upload failed: %v", err)
 			return c.Status(fiber.StatusBadGateway).JSON(fiber.Map{
